@@ -34,7 +34,21 @@ vis = visdom.Visdom(server='http://ec2-3-15-207-181.us-east-2.compute.amazonaws.
 im = np.swapaxes(im,0,2)
 im = np.swapaxes(im,1,2)
 vis.image(im)
-pdb.set_trace()
+
+im_new = cv2.imread(str(image_path))
+selective_search_db = imdb.selective_search_roidb()
+required_selective_search_db = selective_search_db[2020]
+
+#TODO: Get top 10 bboxes
+top_10_boxes = required_selective_search_db['boxes'][:10]
+#for i in range(10):
+im_new = visualize_bboxes(im_new,top_10_boxes)
+im_new = np.swapaxes(im_new,0,2)
+im_new = np.swapaxes(im_new,1,2)
+vis.image(im_new)
+
+
+
 #Get predicted bounded_boxes 
 #annotation_list = []
 #annotation_list.append(annotations)
