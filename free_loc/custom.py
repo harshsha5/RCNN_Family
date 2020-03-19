@@ -9,6 +9,7 @@ from PIL import Image
 import os
 import os.path
 import numpy as np
+import pdb
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm']
 
@@ -42,8 +43,8 @@ def make_dataset(imdb, class_to_idx):
     dataset_list = []
     for elt in imdb._image_index:
         gt_class_indices = imdb._load_pascal_annotation(elt)['gt_classes'].tolist()
-        dataset_list.append((image_path_at(elt),gt_class_indices))
-        
+        dataset_list.append((imdb.image_path_from_index(elt),gt_class_indices))
+
     return dataset_list
 
 
@@ -94,7 +95,7 @@ class LocalizerAlexNet(nn.Module):
         self.classifier = nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=0),
             nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
+            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 20, kernel_size=1, stride=1, padding=0)
         )
