@@ -252,10 +252,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
         data_time.update(time.time() - end)
 
         target = target.type(torch.FloatTensor).cuda(async=True)
-        input_var = input
+        print(input.is_cuda)
+        input_var = input.cuda()
         target_var = target
-        pdb.set_trace()
+        
         # TODO: Get output from model
+        output_var = model(input_var)
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
 
