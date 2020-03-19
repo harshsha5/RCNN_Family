@@ -4,8 +4,8 @@ import shutil
 import time
 import sys
 sys.path.insert(0, 'faster_rcnn')
-import sklearn
-import sklearn.metrics
+#import sklearn
+#import sklearn.metrics
 
 import torch
 import torch.nn as nn
@@ -135,18 +135,12 @@ def main():
     model.features = torch.nn.DataParallel(model.features)
     model.cuda()
 
-    pdb.set_trace()
-
     # TODO:
     # define loss function (criterion) and optimizer
 
-
-
-
-
-
-
-
+    criterion = nn.MultiLabelSoftMarginLoss().cuda()
+    optimizer = torch.optim.SGD(model.parameters(), args.lr,momentum=args.momentum,weight_decay=args.weight_decay)
+    #optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,momentum=args.momentum,weight_decay=args.weight_decay)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -260,7 +254,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         target = target.type(torch.FloatTensor).cuda(async=True)
         input_var = input
         target_var = target
-
+        pdb.set_trace()
         # TODO: Get output from model
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``

@@ -227,18 +227,15 @@ class IMDBDataset(data.Dataset):
                                    (it can be a numpy array)
         """
         # TODO: Write this function, look at the imagenet code for inspiration
+        imdb = self.imdb
+        fpath = imdb.image_path_from_index(imdb._image_index[index])
+        img = Image.open(fpath)
+        img = self.transform(img)
 
-
-
-
-
-
-
-
-
-
-
-
+        annotations = imdb._load_pascal_annotation(imdb._image_index[index])
+        target = np.zeros(len(imdb._classes))
+        for elt in annotations['gt_classes']:
+            target[elt-1] = 1
 
         return img, target
 
