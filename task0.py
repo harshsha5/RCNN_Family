@@ -10,18 +10,6 @@ def visualize_bboxes(im, dets):
     for i in range(dets.shape[0]):
         bbox = tuple(int(np.round(x)) for x in dets[i, :4])
         cv2.rectangle(im, bbox[0:2], bbox[2:4], (0, 204, 0), 2)
-
-    '''for i in range(np.minimum(10, dets.shape[0])):
-        bbox = tuple(int(np.round(x)) for x in dets[i, :4])
-        score = dets[i, -1]
-        if score > thresh:
-            cv2.rectangle(im, bbox[0:2], bbox[2:4], (0, 204, 0), 2)
-            cv2.putText(
-                im,
-                '%s: %.3f' % (class_name, score), (bbox[0], bbox[1] + 15),
-                cv2.FONT_HERSHEY_PLAIN,
-                1.0, (0, 0, 255),
-                thickness=1)'''
     return im
 
 imdb = get_imdb('voc_2007_trainval')
@@ -46,12 +34,3 @@ im_new = visualize_bboxes(im_new,top_10_boxes)
 im_new = np.swapaxes(im_new,0,2)
 im_new = np.swapaxes(im_new,1,2)
 vis.image(im_new)
-
-
-
-#Get predicted bounded_boxes 
-#annotation_list = []
-#annotation_list.append(annotations)
-#roidb = imdb._load_selective_search_roidb(annotation_list)
-#vis_detections(im,imdb._classes[annotations['gt_classes'][0]],roidb['boxes'])
-#pdb.set_trace()

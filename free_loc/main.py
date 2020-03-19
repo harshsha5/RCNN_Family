@@ -22,6 +22,7 @@ import torchvision.models as models
 
 from datasets.factory import get_imdb
 from custom import *
+import pdb
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -133,6 +134,8 @@ def main():
 
     model.features = torch.nn.DataParallel(model.features)
     model.cuda()
+
+    pdb.set_trace()
 
     # TODO:
     # define loss function (criterion) and optimizer
