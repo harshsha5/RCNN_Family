@@ -231,6 +231,9 @@ def main():
     for elt in xavier_initialized_conv_layers:
         torch.nn.init.xavier_uniform_(model.classifier[elt].weight)
 
+    print("Registering backward hook for conv_5 layer")
+    model.features.module[10].register_backward_hook(hook)
+
     iter_cnt = 0
     for epoch in range(args.start_epoch, args.epochs):
         print("Epoch count is: ",epoch,"\t","Iteration Count is: ",iter_cnt)
@@ -257,8 +260,9 @@ def main():
 
     writer.close()
 
-
-
+conv_5_out = []
+def hook(module, grad_input, grad_output):
+    conv_5_out.append(grad_output)
 
 #TODO: You can add input arguments if you wish
 def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
@@ -305,6 +309,8 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         batch_time.update(time.time() - end)
         end = time.time()
 
+        writer.add_scalar('Train/Loss', loss, iter_cnt)
+
         if i % args.print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -324,15 +330,28 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
 
-        writer.add_scalar('Train/Loss', loss, iter_cnt)
+        if(i==0 or i==len(train_loader)-1):   #Makes sure this visualization is twice per epoch: Once in the first batch and once in the last batch
+            
+            #Plot the first image of each batch
+            writer.add_image('Train_Images_'+str(epoch), input[0]) 
 
-        #Plot the first image of each batch
-        writer.add_image('Train_Images_'+str(epoch), input[0])  
+            if(vis is not None):
+                im = input[0].numpy()
+                vis.image(im)
 
-        if(vis is not None):
-            im = input[0].numpy()
-            #Probably swapaxes is reqd.
-            vis.image(im)
+            pdb.set_trace()
+            #Getting heatmap
+            class_idx = argmax(target[0])
+            class_output = output_var[0][class_idx]
+            conv_layer_output_value = conv_5_out[epoch][0] * class_output
+            heatmap = np.mean(conv_layer_output_value, axis = -1)       
+            heatmap = np.maximum(heatmap, 0)
+            heatmap /= np.max(heatmap)
+            if(vis is not None):
+                heat = heatmap.numpy()
+                vis.image(heat)
+
+            writer.add_image('Heatmap_'+str(epoch), heatmap) 
 
         iter_cnt+=1
         # End of train()
