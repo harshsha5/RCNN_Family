@@ -23,6 +23,8 @@ import torchvision.models as models
 from datasets.factory import get_imdb
 from custom import *
 import pdb
+from tensorboardX import SummaryWriter
+import time
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -118,6 +120,11 @@ parser.add_argument('--vis', action='store_true')
 
 best_prec1 = 0
 
+def apply_maxpool(model_output):
+    assert(model_output.shape[2]==model_output[3]) #filter map width and height are the same. This should be true for our use case, since model input gets a square image
+    pool_kernel_size = model_output.shape[2]
+    pool = nn.MaxPool2d(kernel_size = pool_kernel_size, stride=1)
+    return pool(model_output)
 
 def main():
     global args, best_prec1
@@ -204,21 +211,30 @@ def main():
     # modifications to train()
     if args.vis:
         import visdom
+        vis = visdom.Visdom(server='http://ec2-3-21-126-90.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
 
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    save_path = "runs/"+timestr+'/'
+    writer = SummaryWriter(save_path)
 
+    #Initializing model weights
+    pretrained_alexnet = models.alexnet(pretrained=True)
+    pdb.set_trace()
+    model.features[0].weight.data.copy_(pretrained_alexnet.features[0].weight.data)
+    model.features[0].bias.data.copy_(pretrained_alexnet.features[0].bias.data)
+    torch.nn.init.xavier_uniform(model.classifier[0].weight)
 
-
-
-
-
+    iter_cnt = 0
     for epoch in range(args.start_epoch, args.epochs):
+        print("Epoch count is: ",epoch,"\t","Iteration Count is: ",iter_cnt)
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         # evaluate on validation set
-        if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
+        if epoch % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
+        #if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
             m1, m2 = validate(val_loader, model, criterion)
             score = m1 * m2
             # remember best prec@1 and save checkpoint
@@ -236,7 +252,7 @@ def main():
 
 
 #TODO: You can add input arguments if you wish
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -252,33 +268,30 @@ def train(train_loader, model, criterion, optimizer, epoch):
         data_time.update(time.time() - end)
 
         target = target.type(torch.FloatTensor).cuda(async=True)
-        print(input.is_cuda)
+        #print(input.is_cuda)
         input_var = input.cuda()
         target_var = target
         
         # TODO: Get output from model
         output_var = model(input_var)
         # TODO: Perform any necessary functions on the output
+        image_pred = apply_maxpool(output_var)
         # TODO: Compute loss using ``criterion``
 
-
-
-
+        loss = criterion(image_pred, target_var)
 
         # measure metrics and record loss
-        m1 = metric1(imoutput.data, target)
-        m2 = metric2(imoutput.data, target)
+        # m1 = metric1(imoutput.data, target)
+        # m2 = metric2(imoutput.data, target)
         losses.update(loss.data[0], input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        # avg_m1.update(m1[0], input.size(0))
+        # avg_m2.update(m2[0], input.size(0))
 
         # TODO:
         # compute gradient and do SGD step
-
-
-
-
-
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -303,15 +316,18 @@ def train(train_loader, model, criterion, optimizer, epoch):
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
 
+        writer.add_scalar('Train/Loss', loss, iter_cnt)
 
+        #Plot the first image of each batch
+        writer.add_image('Train_Images_'+str(epoch), input[0])  
 
+        if(vis is not None):
+            im = input[0].numpy()
+            #Probably swapaxes is reqd.
+            pdb.set_trace()
+            vis.image(im)
 
-
-
-
-
-
-
+        iter_cnt+=1
         # End of train()
 
 
