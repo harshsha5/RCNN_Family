@@ -121,7 +121,7 @@ parser.add_argument('--vis', action='store_true')
 best_prec1 = 0
 
 def apply_maxpool(model_output):
-    assert(model_output.shape[2]==model_output[3]) #filter map width and height are the same. This should be true for our use case, since model input gets a square image
+    assert(model_output.shape[2]==model_output.shape[3]) #filter map width and height are the same. This should be true for our use case, since model input gets a square image
     pool_kernel_size = model_output.shape[2]
     pool = nn.MaxPool2d(kernel_size = pool_kernel_size, stride=1)
     return pool(model_output)
@@ -212,6 +212,8 @@ def main():
     if args.vis:
         import visdom
         vis = visdom.Visdom(server='http://ec2-3-21-126-90.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
+    else:
+        vis = None
 
     timestr = time.strftime("%Y%m%d-%H%M%S")
     save_path = "runs/"+timestr+'/'
@@ -219,10 +221,15 @@ def main():
 
     #Initializing model weights
     pretrained_alexnet = models.alexnet(pretrained=True)
-    pdb.set_trace()
-    model.features[0].weight.data.copy_(pretrained_alexnet.features[0].weight.data)
-    model.features[0].bias.data.copy_(pretrained_alexnet.features[0].bias.data)
-    torch.nn.init.xavier_uniform(model.classifier[0].weight)
+    conv_layer_numbers = [0,3,6,8,10] 
+    for elt in conv_layer_numbers:
+        #print(model.features.module[elt])
+        model.features.module[elt].weight.data.copy_(pretrained_alexnet.features[elt].weight.data)
+        model.features.module[elt].bias.data.copy_(pretrained_alexnet.features[elt].bias.data)
+
+    xavier_initialized_conv_layers = [0,2,4]
+    for elt in xavier_initialized_conv_layers:
+        torch.nn.init.xavier_uniform_(model.classifier[elt].weight)
 
     iter_cnt = 0
     for epoch in range(args.start_epoch, args.epochs):
@@ -248,6 +255,8 @@ def main():
                 'optimizer': optimizer.state_dict(),
             }, is_best)
 
+    writer.close()
+
 
 
 
@@ -266,24 +275,23 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-
         target = target.type(torch.FloatTensor).cuda(async=True)
         #print(input.is_cuda)
         input_var = input.cuda()
         target_var = target
-        
+
         # TODO: Get output from model
         output_var = model(input_var)
         # TODO: Perform any necessary functions on the output
         image_pred = apply_maxpool(output_var)
         # TODO: Compute loss using ``criterion``
 
-        loss = criterion(image_pred, target_var)
+        loss = criterion(image_pred.squeeze(), target_var)
 
         # measure metrics and record loss
         # m1 = metric1(imoutput.data, target)
         # m2 = metric2(imoutput.data, target)
-        losses.update(loss.data[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
         # avg_m1.update(m1[0], input.size(0))
         # avg_m2.update(m2[0], input.size(0))
 
@@ -324,7 +332,6 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         if(vis is not None):
             im = input[0].numpy()
             #Probably swapaxes is reqd.
-            pdb.set_trace()
             vis.image(im)
 
         iter_cnt+=1
