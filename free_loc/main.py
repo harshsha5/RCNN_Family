@@ -231,8 +231,8 @@ def main():
     for elt in xavier_initialized_conv_layers:
         torch.nn.init.xavier_uniform_(model.classifier[elt].weight)
 
-    print("Registering backward hook for conv_5 layer")
-    model.features.module[10].register_backward_hook(hook)
+    print("Registering backward hook for conv_8 layer")
+    model.classifier[4].register_backward_hook(hook)
 
     iter_cnt = 0
     for epoch in range(args.start_epoch, args.epochs):
@@ -260,9 +260,9 @@ def main():
 
     writer.close()
 
-conv_5_out = []
+conv_8_out = []
 def hook(module, grad_input, grad_output):
-    conv_5_out.append(grad_output)
+    conv_8_out.append(grad_output)
 
 #TODO: You can add input arguments if you wish
 def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
@@ -331,7 +331,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         #TODO: Visualize at appropriate intervals
 
         if(i==0 or i==len(train_loader)-1):   #Makes sure this visualization is twice per epoch: Once in the first batch and once in the last batch
-            
+
             #Plot the first image of each batch
             writer.add_image('Train_Images_'+str(epoch), input[0]) 
 
@@ -339,12 +339,15 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 im = input[0].numpy()
                 vis.image(im)
 
-            pdb.set_trace()
             #Getting heatmap
-            class_idx = argmax(target[0])
+            values, indices = torch.max(target[0], 0)
+            class_idx = indices[0].item() #Select one of the present ground truth classes
             class_output = output_var[0][class_idx]
-            conv_layer_output_value = conv_5_out[epoch][0] * class_output
-            heatmap = np.mean(conv_layer_output_value, axis = -1)       
+            conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
+            new_conv = conv_layer_output_value.unsqueeze(dim=0)
+            writer.add_image('Heatmap_'+str(epoch), new_conv)
+            pdb.set_trace()
+            heatmap = np.mean(conv_layer_output_value, axis = -1)
             heatmap = np.maximum(heatmap, 0)
             heatmap /= np.max(heatmap)
             if(vis is not None):
