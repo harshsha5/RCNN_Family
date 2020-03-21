@@ -240,7 +240,7 @@ def main():
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
+        iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         # evaluate on validation set
         if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
@@ -310,7 +310,6 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         end = time.time()
 
         writer.add_scalar('Train/Loss', loss, iter_cnt)
-        writer.add_scalar('mAP', avg_m1.val, iter_cnt)
 
         if i % args.print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
@@ -371,6 +370,8 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 vis.image(heat)
 
         iter_cnt+=1
+    writer.add_scalar('mAP', avg_m1.val, epoch)
+    return iter_cnt
         # End of train()
 
 
