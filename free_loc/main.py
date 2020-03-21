@@ -231,7 +231,7 @@ def main():
     for elt in xavier_initialized_conv_layers:
         torch.nn.init.xavier_uniform_(model.classifier[elt].weight)
 
-    print("Registering backward hook for conv_8 layer")
+    print("Registering backward hook for final conv layer")
     model.classifier[4].register_backward_hook(hook)
 
     iter_cnt = 0
@@ -333,28 +333,41 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         if(i==0 or i==len(train_loader)-1):   #Makes sure this visualization is twice per epoch: Once in the first batch and once in the last batch
 
             #Plot the first image of each batch
-            writer.add_image('Train_Images_'+str(epoch), input[0]) 
+            writer.add_image('Train_Images_'+str(epoch)+'_'+str(iter_cnt), input[0]) 
 
             if(vis is not None):
                 im = input[0].numpy()
                 vis.image(im)
 
             #Getting heatmap
+            EPS = 0.000001
             values, indices = torch.max(target[0], 0)
             class_idx = indices[0].item() #Select one of the present ground truth classes
-            class_output = output_var[0][class_idx]
-            conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
-            new_conv = conv_layer_output_value.unsqueeze(dim=0)
-            writer.add_image('Heatmap_'+str(epoch), new_conv)
-            pdb.set_trace()
-            heatmap = np.mean(conv_layer_output_value, axis = -1)
+            print("GT class index is : ",class_idx)
+            #class_output = output_var[0][class_idx].detach().cpu()
+            activations = output_var[0].cpu()
+            #output_var[:,class_idx,:,:].backward()
+            #gradients = model.get_activations_gradient()
+            gradients = conv_8_out[-1][0][0]
+            #pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
+            pooled_gradients =  gradients.mean(-1).mean(-1).cpu()
+            for i in range(pooled_gradients.shape[0]):
+                activations[i, :, :] *= pooled_gradients[i]
+            heatmap = torch.mean(activations, dim=0)
+	    heatmap = heatmap.detach()
             heatmap = np.maximum(heatmap, 0)
-            heatmap /= np.max(heatmap)
+            heatmap /= torch.max(heatmap)
+            heatmap = heatmap.unsqueeze(0)
+            #gradients = conv_8_out[-1][0][0][class_idx][0]
+            '''conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
+            new_conv = conv_layer_output_value.unsqueeze(dim=0)'''
+            writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
+            '''heatmap = np.mean(conv_layer_output_value, axis = -1)
+            heatmap = np.maximum(heatmap, 0)
+            heatmap /= np.max(heatmap)'''
             if(vis is not None):
                 heat = heatmap.numpy()
                 vis.image(heat)
-
-            writer.add_image('Heatmap_'+str(epoch), heatmap) 
 
         iter_cnt+=1
         # End of train()
