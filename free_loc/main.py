@@ -243,7 +243,7 @@ def main():
         train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         # evaluate on validation set
-        if epoch % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
+        if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         #if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
             m1, m2 = validate(val_loader, model, criterion)
             score = m1 * m2
@@ -293,11 +293,11 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         loss = criterion(image_pred.squeeze(), target_var)
 
         # measure metrics and record loss
-        m1 = metric1(image_pred.data, target)
-        m2 = metric2(image_pred.data, target)
+        m1 = metric1(image_pred.squeeze().data, target)
+        #m2 = metric2(image_pred.data, target)
         losses.update(loss.item(), input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        avg_m1.update(m1, input.size(0))
+        #avg_m2.update(m2[0], input.size(0))
 
         # TODO:
         # compute gradient and do SGD step
@@ -310,6 +310,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         end = time.time()
 
         writer.add_scalar('Train/Loss', loss, iter_cnt)
+        writer.add_scalar('mAP', avg_m1.val, iter_cnt)
 
         if i % args.print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
@@ -354,7 +355,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             for i in range(pooled_gradients.shape[0]):
                 activations[i, :, :] *= pooled_gradients[i]
             heatmap = torch.mean(activations, dim=0)
-	        heatmap = heatmap.detach()
+	    heatmap = heatmap.detach()
             heatmap = np.maximum(heatmap, 0)
             heatmap /= torch.max(heatmap)
             heatmap = heatmap.unsqueeze(0)
@@ -499,7 +500,7 @@ def metric1(output, target):
     gt = target.cpu().clone().numpy()
     pred = torch.sigmoid(output)
     pred = pred.cpu().clone().numpy()
-    AP = compute_ap(gt, pred, valid)
+    AP = compute_ap(gt, pred)
     mAP = np.mean(AP)
     return mAP
 
