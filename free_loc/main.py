@@ -4,8 +4,8 @@ import shutil
 import time
 import sys
 sys.path.insert(0, 'faster_rcnn')
-#import sklearn
-#import sklearn.metrics
+import sklearn
+import sklearn.metrics
 
 import torch
 import torch.nn as nn
@@ -293,11 +293,11 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         loss = criterion(image_pred.squeeze(), target_var)
 
         # measure metrics and record loss
-        # m1 = metric1(imoutput.data, target)
-        # m2 = metric2(imoutput.data, target)
+        m1 = metric1(image_pred.data, target)
+        m2 = metric2(image_pred.data, target)
         losses.update(loss.item(), input.size(0))
-        # avg_m1.update(m1[0], input.size(0))
-        # avg_m2.update(m2[0], input.size(0))
+        avg_m1.update(m1[0], input.size(0))
+        avg_m2.update(m2[0], input.size(0))
 
         # TODO:
         # compute gradient and do SGD step
@@ -354,7 +354,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             for i in range(pooled_gradients.shape[0]):
                 activations[i, :, :] *= pooled_gradients[i]
             heatmap = torch.mean(activations, dim=0)
-	    heatmap = heatmap.detach()
+	        heatmap = heatmap.detach()
             heatmap = np.maximum(heatmap, 0)
             heatmap /= torch.max(heatmap)
             heatmap = heatmap.unsqueeze(0)
@@ -469,10 +469,39 @@ def adjust_learning_rate(optimizer, epoch):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+def compute_ap(gt, pred, average=None):
+    """
+    Compute the multi-label classification accuracy.
+    Args:
+        gt (np.ndarray): Shape Nx20, 0 or 1, 1 if the object i is present in that
+            image. N is the batch size
+        pred (np.ndarray): Shape Nx20, probability of that object in the image
+            (output probablitiy). N is the batch size
+    Returns:
+        AP (list): average precision for all classes
+    """
+    nclasses = gt.shape[1]
+    AP = []
+    for cid in range(nclasses):
+        gt_cls = gt[:, cid].astype('float32')
+        pred_cls = pred[:, cid].astype('float32')
+        # As per PhilK. code:
+        # https://github.com/philkr/voc-classification/blob/master/src/train_cls.py
+        pred_cls -= 1e-5 * gt_cls
+        ap = sklearn.metrics.average_precision_score(
+            gt_cls, pred_cls, average=average)
+        AP.append(ap)
+    return AP
+
 
 def metric1(output, target):
     # TODO: Ignore for now - proceed till instructed
-    return [0]
+    gt = target.cpu().clone().numpy()
+    pred = torch.sigmoid(output)
+    pred = pred.cpu().clone().numpy()
+    AP = compute_ap(gt, pred, valid)
+    mAP = np.mean(AP)
+    return mAP
 
 
 def metric2(output, target):
