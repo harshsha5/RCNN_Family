@@ -25,6 +25,8 @@ from custom import *
 import pdb
 from tensorboardX import SummaryWriter
 import time
+import random
+import cv2
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -164,6 +166,7 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
+    random.seed(1)              #Fixing seed so that dataloader generates the same random batches always.
 
     # Data loading code
     # TODO: Write code for IMDBDataset in custom.py
@@ -242,11 +245,19 @@ def main():
         # train for one epoch
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
+        #Obtaining histogram of weights and histogram of gradients of weights
+        pdb.set_trace()
+        for tag, parm in model.named_parameters:
+            writer.add_histogram(tag, parm.grad.data.cpu().numpy(), epoch)
+        # writer.add_histogram('Resnet_Conv1', model.conv1.weight.grad, cnt)
+
         # evaluate on validation set
-        if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
-        #if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            m1, m2 = validate(val_loader, model, criterion)
-            score = m1 * m2
+        # if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
+        if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
+            print("Evaluating on Validation Set. Epoch number is: ",epoch)
+            m1, m2 = validate(val_loader, model, criterion, epoch, writer)
+            score = m1                                                           #TODO: Delete this line and uncomment the line below later
+            #score = m1 * m2 
             # remember best prec@1 and save checkpoint
             is_best = score > best_prec1
             best_prec1 = max(score, best_prec1)
@@ -340,7 +351,6 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 vis.image(im)
 
             #Getting heatmap
-            '''EPS = 0.000001
             values, indices = torch.max(target[0], 0)
             class_idx = indices[0].item() #Select one of the present ground truth classes
             print("GT class index is : ",class_idx)
@@ -348,7 +358,8 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             activations = output_var[0].cpu()
             #output_var[:,class_idx,:,:].backward()
             #gradients = model.get_activations_gradient()
-            gradients = conv_8_out[-1][0][0]
+            # gradients = conv_8_out[-1][0][0]
+            gradients = conv_8_out[-1][0]
             #pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
             pooled_gradients =  gradients.mean(-1).mean(-1).cpu()
             for i in range(pooled_gradients.shape[0]):
@@ -358,16 +369,25 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             heatmap = np.maximum(heatmap, 0)
             heatmap /= torch.max(heatmap)
             heatmap = heatmap.unsqueeze(0)
-            #gradients = conv_8_out[-1][0][0][class_idx][0]'''
-            '''conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
-            new_conv = conv_layer_output_value.unsqueeze(dim=0)'''
-            ''' writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
-            heatmap = np.mean(conv_layer_output_value, axis = -1)
-            heatmap = np.maximum(heatmap, 0)
-            heatmap /= np.max(heatmap)
+            #gradients = conv_8_out[-1][0][0][class_idx][0]
+            #conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
+            #new_conv = conv_layer_output_value.unsqueeze(dim=0)
+            writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
+
+            # img = cv2.imread('./data/Elephant/data/05fig34.jpg')
+            pdb.set_trace()
+            heatmap = cv2.resize(heatmap, (input[0].shape[1], input[0].shape[0]))
+            heatmap = np.uint8(255 * heatmap)
+            heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+            superimposed_img = heatmap * 0.4 + input[0]
+            writer.add_image('Superimposed_image_'+str(epoch)+'_'+str(iter_cnt), superimposed_img)
+
+            #heatmap = np.mean(conv_layer_output_value, axis = -1)
+            #heatmap = np.maximum(heatmap, 0)
+            #heatmap /= np.max(heatmap)
             if(vis is not None):
                 heat = heatmap.numpy()
-                vis.image(heat)'''
+                vis.image(heat)
 
         iter_cnt+=1
     writer.add_scalar('mAP', avg_m1.avg, epoch)
@@ -375,7 +395,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         # End of train()
 
 
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion,epoch, writer,vis=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     avg_m1 = AverageMeter()
@@ -387,26 +407,22 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         target = target.type(torch.FloatTensor).cuda(async=True)
-        input_var = input
-        target_var = target
+        input_var = input.cuda()
 
         # TODO: Get output from model
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
 
-
-
-
-
-
-
+        output_var = model(input_var)
+        image_pred = apply_maxpool(output_var)
+        loss = criterion(image_pred.squeeze(), target)
 
         # measure metrics and record loss
-        m1 = metric1(imoutput.data, target)
-        m2 = metric2(imoutput.data, target)
-        losses.update(loss.data[0], input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        m1 = metric1(image_pred.squeeze().cpu().data, target)
+        #m2 = metric2(image_pred.data, target)
+        losses.update(loss.item(), input.size(0))
+        avg_m1.update(m1, input.size(0))
+        #avg_m2.update(m2[0], input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -428,10 +444,7 @@ def validate(val_loader, model, criterion):
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
 
-
-
-
-
+    writer.add_scalar('Average Validation Loss', losses.avg, epoch)
 
     print(' * Metric1 {avg_m1.avg:.3f} Metric2 {avg_m2.avg:.3f}'.format(
         avg_m1=avg_m1, avg_m2=avg_m2))
