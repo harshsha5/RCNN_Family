@@ -54,10 +54,10 @@ parser.add_argument(
 parser.add_argument(
     '-b',
     '--batch-size',
-    default=256,
+    default=32,
     type=int,
     metavar='N',
-    help='mini-batch size (default: 256)')
+    help='mini-batch size (default: 32)')
 parser.add_argument(
     '--lr',
     '--learning-rate',
@@ -262,7 +262,7 @@ def main():
 
 conv_8_out = []
 def hook(module, grad_input, grad_output):
-    conv_8_out.append(grad_output)
+    conv_8_out.append(grad_output[0].cpu().clone())
 
 #TODO: You can add input arguments if you wish
 def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
@@ -282,7 +282,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         target = target.type(torch.FloatTensor).cuda(async=True)
         #print(input.is_cuda)
         input_var = input.cuda()
-        target_var = target
+        #target_var = target
 
         # TODO: Get output from model
         output_var = model(input_var)
@@ -290,10 +290,10 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         image_pred = apply_maxpool(output_var)
         # TODO: Compute loss using ``criterion``
 
-        loss = criterion(image_pred.squeeze(), target_var)
+        loss = criterion(image_pred.squeeze(), target)
 
         # measure metrics and record loss
-        m1 = metric1(image_pred.squeeze().data, target)
+        m1 = metric1(image_pred.squeeze().cpu().data, target)
         #m2 = metric2(image_pred.data, target)
         losses.update(loss.item(), input.size(0))
         avg_m1.update(m1, input.size(0))
@@ -340,7 +340,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 vis.image(im)
 
             #Getting heatmap
-            EPS = 0.000001
+            '''EPS = 0.000001
             values, indices = torch.max(target[0], 0)
             class_idx = indices[0].item() #Select one of the present ground truth classes
             print("GT class index is : ",class_idx)
@@ -358,19 +358,19 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             heatmap = np.maximum(heatmap, 0)
             heatmap /= torch.max(heatmap)
             heatmap = heatmap.unsqueeze(0)
-            #gradients = conv_8_out[-1][0][0][class_idx][0]
+            #gradients = conv_8_out[-1][0][0][class_idx][0]'''
             '''conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
             new_conv = conv_layer_output_value.unsqueeze(dim=0)'''
-            writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
-            '''heatmap = np.mean(conv_layer_output_value, axis = -1)
+            ''' writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
+            heatmap = np.mean(conv_layer_output_value, axis = -1)
             heatmap = np.maximum(heatmap, 0)
-            heatmap /= np.max(heatmap)'''
+            heatmap /= np.max(heatmap)
             if(vis is not None):
                 heat = heatmap.numpy()
-                vis.image(heat)
+                vis.image(heat)'''
 
         iter_cnt+=1
-    writer.add_scalar('mAP', avg_m1.val, epoch)
+    writer.add_scalar('mAP', avg_m1.avg, epoch)
     return iter_cnt
         # End of train()
 
