@@ -166,7 +166,8 @@ def main():
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
-    random.seed(1)              #Fixing seed so that dataloader generates the same random batches always.
+    random.seed(100)              #Fixing seed so that dataloader generates the same random batches always.
+    np.random.seed(100)
 
     # Data loading code
     # TODO: Write code for IMDBDataset in custom.py
@@ -246,7 +247,7 @@ def main():
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         #Obtaining histogram of weights and histogram of gradients of weights
-        for i,elt in enumerate(conv_layer_numbers):
+        '''for i,elt in enumerate(conv_layer_numbers):
             weight_tag = "feature_conv_" + str(i) + "_weight"
             grad_tag = "feature_conv_" + str(i) + "_grad"
             pdb.set_trace()
@@ -257,7 +258,7 @@ def main():
             weight_tag = "classifier_conv_" + str(i+len(conv_layer_numbers)) + "_weight"
             grad_tag = "classifier_conv_" + str(i+len(conv_layer_numbers)) + "_grad"
             writer.add_histogram(weight_tag, model.classifier[elt].weight.data.cpu(), epoch)
-            writer.add_histogram(grad_tag, model.classifier[elt].weight.grad.data.cpu(), epoch)
+            writer.add_histogram(grad_tag, model.classifier[elt].weight.grad.data.cpu(), epoch)'''
 
         # evaluate on validation set
         # if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
