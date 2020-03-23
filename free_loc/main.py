@@ -246,10 +246,18 @@ def main():
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         #Obtaining histogram of weights and histogram of gradients of weights
-        pdb.set_trace()
-        for tag, parm in model.named_parameters:
-            writer.add_histogram(tag, parm.grad.data.cpu().numpy(), epoch)
-        # writer.add_histogram('Resnet_Conv1', model.conv1.weight.grad, cnt)
+        for i,elt in enumerate(conv_layer_numbers):
+            weight_tag = "feature_conv_" + str(i) + "_weight"
+            grad_tag = "feature_conv_" + str(i) + "_grad"
+            pdb.set_trace()
+            writer.add_histogram(weight_tag, model.features.module[elt].weight.data.cpu(), epoch)
+            writer.add_histogram(grad_tag, model.features.module[elt].weight.grad.data.cpu(), epoch)
+
+        for i,elt in enumerate(xavier_initialized_conv_layers):
+            weight_tag = "classifier_conv_" + str(i+len(conv_layer_numbers)) + "_weight"
+            grad_tag = "classifier_conv_" + str(i+len(conv_layer_numbers)) + "_grad"
+            writer.add_histogram(weight_tag, model.classifier[elt].weight.data.cpu(), epoch)
+            writer.add_histogram(grad_tag, model.classifier[elt].weight.grad.data.cpu(), epoch)
 
         # evaluate on validation set
         # if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
@@ -274,6 +282,10 @@ def main():
 conv_8_out = []
 def hook(module, grad_input, grad_output):
     conv_8_out.append(grad_output[0].cpu().clone())
+
+def inv_transform(transformed_tensor):
+    inv_normalize = transforms.Normalize(mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225], std=[1/0.229, 1/0.224, 1/0.225])
+    return inv_normalize(transformed_tensor)
 
 #TODO: You can add input arguments if you wish
 def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
@@ -344,7 +356,9 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         if(i==0 or i==len(train_loader)-1):   #Makes sure this visualization is twice per epoch: Once in the first batch and once in the last batch
 
             #Plot the first image of each batch
-            writer.add_image('Train_Images_'+str(epoch)+'_'+str(iter_cnt), input[0]) 
+            original_image = inv_transform(input[0].clone())
+            writer.add_image('Train_Images_'+str(epoch)+'_'+str(iter_cnt), input[0])
+            writer.add_image('Original_Image_'+str(epoch)+'_'+str(iter_cnt), original_image)
 
             if(vis is not None):
                 im = input[0].numpy()
@@ -375,12 +389,13 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
 
             # img = cv2.imread('./data/Elephant/data/05fig34.jpg')
-            pdb.set_trace()
-            heatmap = cv2.resize(heatmap, (input[0].shape[1], input[0].shape[0]))
+            heatmap = cv2.resize(heatmap.squeeze().numpy(), (input[0].shape[2], input[0].shape[1]))
             heatmap = np.uint8(255 * heatmap)
             heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-            superimposed_img = heatmap * 0.4 + input[0]
-            writer.add_image('Superimposed_image_'+str(epoch)+'_'+str(iter_cnt), superimposed_img)
+            heatmap = np.swapaxes(heatmap,0,2)
+            heatmap = np.swapaxes(heatmap,1,2)
+            superimposed_img = heatmap * 0.4 + original_image.numpy()
+            writer.add_image('Superimposed_image_'+str(epoch)+'_'+str(iter_cnt), torch.from_numpy(superimposed_img))
 
             #heatmap = np.mean(conv_layer_output_value, axis = -1)
             #heatmap = np.maximum(heatmap, 0)
