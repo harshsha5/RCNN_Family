@@ -261,12 +261,11 @@ def main():
             writer.add_histogram(grad_tag, model.classifier[elt].weight.grad.data.cpu(), epoch)'''
 
         # evaluate on validation set
-        # if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
             print("Evaluating on Validation Set. Epoch number is: ",epoch)
             m1, m2 = validate(val_loader, model, criterion, epoch, writer)
-            score = m1                                                           #TODO: Delete this line and uncomment the line below later
-            #score = m1 * m2 
+            # score = m1                                                           #TODO: Delete this line and uncomment the line below later
+            score = m1 * m2 
             # remember best prec@1 and save checkpoint
             is_best = score > best_prec1
             best_prec1 = max(score, best_prec1)
@@ -317,11 +316,11 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         loss = criterion(image_pred.squeeze(), target)
 
         # measure metrics and record loss
-        m1 = metric1(image_pred.squeeze().cpu().data, target)
-        #m2 = metric2(image_pred.data, target)
+        m1 = metric1(image_pred.squeeze().cpu().data, target.cpu().clone().numpy())
+        m2 = metric2(image_pred.squeeze().cpu().data, target.cpu().clone())
         losses.update(loss.item(), input.size(0))
         avg_m1.update(m1, input.size(0))
-        #avg_m2.update(m2[0], input.size(0))
+        avg_m2.update(m2[0], input.size(0))
 
         # TODO:
         # compute gradient and do SGD step
@@ -434,11 +433,11 @@ def validate(val_loader, model, criterion,epoch, writer,vis=None):
         loss = criterion(image_pred.squeeze(), target)
 
         # measure metrics and record loss
-        m1 = metric1(image_pred.squeeze().cpu().data, target)
-        #m2 = metric2(image_pred.data, target)
+        m1 = metric1(image_pred.squeeze().cpu().data, target.cpu().clone().numpy())
+        m2 = metric2(image_pred.squeeze().cpu().data, target.cpu().clone())
         losses.update(loss.item(), input.size(0))
         avg_m1.update(m1, input.size(0))
-        #avg_m2.update(m2[0], input.size(0))
+        avg_m2.update(m2[0], input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -525,9 +524,9 @@ def compute_ap(gt, pred, average=None):
     return AP
 
 
-def metric1(output, target):
+def metric1(output, gt):
     # TODO: Ignore for now - proceed till instructed
-    gt = target.cpu().clone().numpy()
+    # gt = target.cpu().clone().numpy()
     pred = torch.sigmoid(output)
     pred = pred.cpu().clone().numpy()
     AP = compute_ap(gt, pred)
@@ -537,8 +536,8 @@ def metric1(output, target):
 
 def metric2(output, target):
     #TODO: Ignore for now - proceed till instructed
-    return [0]
-
+    pred = torch.sigmoid(output)
+    return metrics.f1_score(target, pred > 0.5, average="samples")
 
 if __name__ == '__main__':
     main()
