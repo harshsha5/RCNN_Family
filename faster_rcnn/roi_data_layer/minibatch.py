@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 
 from fast_rcnn.config import cfg
 from utils.blob import prep_im_for_blob, im_list_to_blob
-
+import pdb
 
 def get_weak_minibatch(roidb, num_classes):
     """Given a roidb, construct a minibatch sampled from it."""
@@ -35,7 +35,7 @@ def get_weak_minibatch(roidb, num_classes):
     im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
 
     blobs = {'data': im_blob}
-    
+
     # Now, build the region of interest and label blobs
     rois_blob = np.zeros((0, 5), dtype=np.float32)
     boxscores_blob = np.zeros(0, dtype=np.float32)
@@ -54,14 +54,24 @@ def get_weak_minibatch(roidb, num_classes):
         #TODO: same as get_minibatch, but we only use the image-level labels
         #So blobs['labels'] should contain a 1x20 binary vector for each image
 
-
-
-
-
-
-
-
-
+        # Add to RoIs blob
+        rois = _project_im_rois(im_rois, im_scales[im_i])
+        batch_ind = im_i * np.ones((rois.shape[0], 1))
+        rois_blob_this_image = np.hstack((batch_ind, rois))
+        rois_blob = np.vstack((rois_blob, rois_blob_this_image))
+        # Add to labels
+        labels_this_image = np.zeros((0,num_classes), dtype=np.float32)
+        if(im_i==0 and labels is None):
+            labels_blob = labels_this_image
+        elif(labels is None):
+            labels_blob = np.vstack((labels_blob, labels_this_image))
+        else:
+            for elt in labels:
+                labels_this_image[elt] = 1
+            if(im_i!=0):
+                labels_blob = np.vstack((labels_blob, labels_this_image))
+            else:
+                labels_blob = labels_this_image
 
     blobs['rois'] = rois_blob
     blobs['labels'] = labels_blob
