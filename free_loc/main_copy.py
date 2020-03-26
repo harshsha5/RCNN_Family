@@ -152,7 +152,8 @@ def main():
 
     # TODO:
     # define loss function (criterion) and optimizer
-    criterion = nn.MultiLabelSoftMarginLoss().cuda()
+    #criterion = nn.MultiLabelSoftMarginLoss().cuda()
+    criterion = nn.BCELoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), args.lr,momentum=args.momentum,weight_decay=args.weight_decay)
     #optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,momentum=args.momentum,weight_decay=args.weight_decay)
 
@@ -300,7 +301,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
         # target_var = target
 
         # TODO: Get output from model
-        output_var = model(input_var)
+        output_var = torch.sigmoid(model(input_var))
         # TODO: Perform any necessary functions on the output
         image_pred = apply_maxpool(output_var)
         # TODO: Compute loss using ``criterion``
@@ -425,7 +426,7 @@ def validate(val_loader, model, criterion):
         # TODO: Get output from model
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
-        output_var = model(input_var)
+        output_var = torch.sigmoid(model(input_var))
         image_pred = apply_maxpool(output_var)
         loss = criterion(image_pred.squeeze(), target)
         # measure metrics and record loss
@@ -509,7 +510,7 @@ def compute_ap(gt, pred, average=None):
 def metric1(output, target):
     # TODO: Ignore for now - proceed till instructed
     gt = target.cpu().clone().numpy()
-    pred = torch.sigmoid(output)
+    #pred = torch.sigmoid(output)
     pred = pred.cpu().clone().numpy()
     AP = compute_ap(gt, pred)
     mAP = np.mean(AP)
@@ -517,7 +518,7 @@ def metric1(output, target):
 
 def metric2(output, target):
     #TODO: Ignore for now - proceed till instructed
-    pred = torch.sigmoid(output)
+    #pred = torch.sigmoid(output)
     return sklearn.metrics.f1_score(target, pred > 0.5, average="samples")
 
 if __name__ == '__main__':
