@@ -131,6 +131,10 @@ def main():
     #SEED = int(time.time())
     #random.seed(SEED)
     #print(SEED)
+    rand_seed = 1024
+    if rand_seed is not None:
+        np.random.seed(rand_seed)
+
     global args, best_prec1
     args = parser.parse_args()
     args.distributed = args.world_size > 1
@@ -225,7 +229,7 @@ def main():
 
     #Initializing model weights
     pretrained_alexnet = models.alexnet(pretrained=True)
-    conv_layer_numbers = [0,3,6,8,10] 
+    conv_layer_numbers = [0,3,6,8,10]
     for elt in conv_layer_numbers:
         #print(model.features.module[elt])
         model.features.module[elt].weight.data.copy_(pretrained_alexnet.features[elt].weight.data)
@@ -247,8 +251,8 @@ def main():
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
 
         # evaluate on validation set
-        if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
-        #if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
+        #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
+        if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
             m1, m2 = validate(val_loader, model, criterion)
             score = m1 * m2
             # remember best prec@1 and save checkpoint
@@ -285,7 +289,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
         #print(input.is_cuda)
         input_var = input.cuda()
         # target_var = target
-        target_var = target
+        # target_var = target
 
         # TODO: Get output from model
         output_var = model(input_var)
@@ -297,10 +301,10 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
 
         # measure metrics and record loss
         m1 = metric1(image_pred.squeeze().cpu().data, target)
-        #m2 = metric2(image_pred.data, target)
+        m2 = metric2(image_pred.squeeze().cpu().data, target.cpu().clone())
         losses.update(loss.item(), input.size(0))
         avg_m1.update(m1, input.size(0))
-        #avg_m2.update(m2[0], input.size(0))
+        avg_m2.update(m2, input.size(0))
         # TODO:
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -380,17 +384,20 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         target = target.type(torch.FloatTensor).cuda(async=True)
-        input_var = input
+        input_var = input.cuda()
         target_var = target
         # TODO: Get output from model
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
+        output_var = model(input_var)
+        image_pred = apply_maxpool(output_var)
+        loss = criterion(image_pred.squeeze(), target)
         # measure metrics and record loss
-        m1 = metric1(imoutput.data, target)
-        m2 = metric2(imoutput.data, target)
-        losses.update(loss.data[0], input.size(0))
-        avg_m1.update(m1[0], input.size(0))
-        avg_m2.update(m2[0], input.size(0))
+        m1 = metric1(image_pred.squeeze().cpu().data, target)
+        m2 = metric2(image_pred.squeeze().cpu().data, target.cpu().clone())
+        losses.update(loss.item(), input.size(0))
+        avg_m1.update(m1, input.size(0))
+        avg_m2.update(m2, input.size(0))
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -474,7 +481,8 @@ def metric1(output, target):
 
 def metric2(output, target):
     #TODO: Ignore for now - proceed till instructed
-    return [0]
+    pred = torch.sigmoid(output)
+    return sklearn.metrics.f1_score(target, pred > 0.5, average="samples")
 
 if __name__ == '__main__':
     main()
