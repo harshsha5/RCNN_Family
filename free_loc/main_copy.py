@@ -511,7 +511,7 @@ def metric1(output, target):
     # TODO: Ignore for now - proceed till instructed
     gt = target.cpu().clone().numpy()
     #pred = torch.sigmoid(output)
-    pred = pred.cpu().clone().numpy()
+    pred = output.cpu().clone().numpy()
     AP = compute_ap(gt, pred)
     mAP = np.mean(AP)
     return mAP
@@ -519,7 +519,7 @@ def metric1(output, target):
 def metric2(output, target):
     #TODO: Ignore for now - proceed till instructed
     #pred = torch.sigmoid(output)
-    return sklearn.metrics.f1_score(target, pred > 0.5, average="samples")
+    return sklearn.metrics.f1_score(target, output > 0.5, average="samples")
 
 if __name__ == '__main__':
     main()
