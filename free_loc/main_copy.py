@@ -128,13 +128,10 @@ def apply_maxpool(model_output):
     return pool(model_output)
 
 def main():
-    #SEED = int(time.time())
-    #random.seed(SEED)
-    #print(SEED)
     rand_seed = 1024
     if rand_seed is not None:
         np.random.seed(rand_seed)
-
+    MODEL_SAVE_PATH = "Saved_Models/localizer_alexnet_" + str(rand_seed)
     global args, best_prec1
     args = parser.parse_args()
     args.distributed = args.world_size > 1
@@ -254,6 +251,8 @@ def main():
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
             m1, m2 = validate(val_loader, model, criterion)
+            writer.add_scalar('Validation/mAP', m1, epoch)
+            writer.add_scalar('Validation/f1_score', m2, epoch)
             score = m1 * m2
             # remember best prec@1 and save checkpoint
             is_best = score > best_prec1
@@ -265,6 +264,8 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
+            if(is_best):
+                torch.save(model.state_dict(), MODEL_SAVE_PATH)
 
     writer.close()
 
@@ -339,11 +340,36 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 vis.image(im)
 
             #Getting heatmap
+            '''
             EPS = 0.000001
-            '''EPS = 0.000001
+            heatmaps = inv_transform(input[0].clone())
             values, indices = torch.max(target[0], 0)
-            class_idx = indices[0].item() #Select one of the present ground truth classes
-            print("GT class index is : ",class_idx)
+            for j in range(indices.shape[0]):
+                class_idx = indices[j].item() #Select one of the present ground truth classes
+                print("GT class index is : ",class_idx)
+                activation = output_var[0,class_idx,:,:].cpu().unsqueeze(0)
+
+                heatmap = torch.mean(activation, dim=0)
+                heatmap = heatmap.detach()
+                heatmap = np.maximum(heatmap, 0)
+                heatmap /= torch.max(heatmap)
+                heatmap = heatmap.unsqueeze(0)
+
+                heatmaps = torch.cat((heatmaps, heatmap), 0)
+
+                if(vis is not None):
+                    heat = heatmap.numpy()
+                    text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + 'class_idx'
+                    vis.text(text_to_display)
+                    vis.image(heat)
+
+            img_grid = torchvision.utils.make_grid(heatmaps)
+            text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmaps'
+            writer.add_image(text_to_display, img_grid)
+
+            '''
+
+            '''
             #class_output = output_var[0][class_idx].detach().cpu()
             activations = output_var[0].cpu()
             #output_var[:,class_idx,:,:].backward()
@@ -371,6 +397,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
 
         iter_cnt+=1
     writer.add_scalar('mAP', avg_m1.avg, epoch)
+    writer.add_scalar('f1_score', avg_m2.avg, epoch)
     return iter_cnt
         # End of train()
 
