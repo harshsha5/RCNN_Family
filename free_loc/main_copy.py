@@ -21,11 +21,13 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 
 from datasets.factory import get_imdb
+from torchvision.utils import make_grid
 from custom import *
 import pdb
 from tensorboardX import SummaryWriter
 import time
 import random
+import cv2
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -131,6 +133,7 @@ def main():
     rand_seed = 1024
     if rand_seed is not None:
         np.random.seed(rand_seed)
+        torch.manual_seed(rand_seed)
     MODEL_SAVE_PATH = "Saved_Models/localizer_alexnet_" + str(rand_seed)
     global args, best_prec1
     args = parser.parse_args()
@@ -216,7 +219,7 @@ def main():
 
     if args.vis:
         import visdom
-        vis = visdom.Visdom(server='http://ec2-3-21-126-90.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
+        vis = visdom.Visdom(server='http://ec2-18-224-94-229.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
     else:
         vis = None
 
@@ -272,6 +275,10 @@ def main():
 conv_8_out = []
 def hook(module, grad_input, grad_output):
     conv_8_out.append(grad_output[0].cpu().clone())
+
+def inv_transform(transformed_tensor):
+    inv_normalize = transforms.Normalize(mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225], std=[1/0.229, 1/0.224, 1/0.225])
+    return inv_normalize(transformed_tensor)
 
 #TODO: You can add input arguments if you wish
 def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
@@ -340,34 +347,32 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
                 vis.image(im)
 
             #Getting heatmap
-            '''
             EPS = 0.000001
-            heatmaps = inv_transform(input[0].clone())
-            values, indices = torch.max(target[0], 0)
-            for j in range(indices.shape[0]):
+            heatmaps = inv_transform(input[0].clone()).unsqueeze(0)
+            values, indices = torch.max(target[0].clone().cpu(), 0)
+            for j in range(indices.numel()):
                 class_idx = indices[j].item() #Select one of the present ground truth classes
                 print("GT class index is : ",class_idx)
-                activation = output_var[0,class_idx,:,:].cpu().unsqueeze(0)
+                #activation = torch.sigmoid(output_var[0,class_idx,:,:]).clone().cpu()
+                activation = output_var[0,class_idx,:,:].clone().cpu()
 
-                heatmap = torch.mean(activation, dim=0)
-                heatmap = heatmap.detach()
-                heatmap = np.maximum(heatmap, 0)
-                heatmap /= torch.max(heatmap)
-                heatmap = heatmap.unsqueeze(0)
-
-                heatmaps = torch.cat((heatmaps, heatmap), 0)
+                heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
+                heatmap = np.uint8(255 * heatmap)
+                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                heatmap = np.swapaxes(heatmap,0,2)
+                heatmap = np.swapaxes(heatmap,1,2)
 
                 if(vis is not None):
-                    heat = heatmap.numpy()
-                    text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + 'class_idx'
+                    #heat = heatmap.numpy()
+                    text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + str(class_idx)
                     vis.text(text_to_display)
-                    vis.image(heat)
+                    vis.image(heatmap)
 
-            img_grid = torchvision.utils.make_grid(heatmaps)
+                heatmaps = torch.cat((heatmaps, torch.from_numpy(heatmap).unsqueeze(0).float()), 0)
+
+            img_grid = make_grid(heatmaps)
             text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmaps'
             writer.add_image(text_to_display, img_grid)
-
-            '''
 
             '''
             #class_output = output_var[0][class_idx].detach().cpu()
