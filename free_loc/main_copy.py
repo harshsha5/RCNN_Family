@@ -219,7 +219,7 @@ def main():
 
     if args.vis:
         import visdom
-        vis = visdom.Visdom(server='http://ec2-18-224-94-229.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
+        vis = visdom.Visdom(server='http://ec2-18-188-81-147.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
     else:
         vis = None
 
@@ -248,7 +248,7 @@ def main():
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis)
+        iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer, trainval_imdb._classes,vis)
 
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
@@ -281,7 +281,7 @@ def inv_transform(transformed_tensor):
     return inv_normalize(transformed_tensor)
 
 #TODO: You can add input arguments if you wish
-def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis=None):
+def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,prediction_class_list,vis=None):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -345,6 +345,9 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             if(vis is not None):
                 im = input[0].numpy()
                 vis.image(im)
+                original_image = inv_transform(input[0].clone()).cpu().detach().numpy()
+                vis.image(original_image,opts={'title': "Original Image_"+str(epoch) + '_' + str(i)})
+
 
             #Getting heatmap
             EPS = 0.000001
@@ -352,7 +355,8 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
             values, indices = torch.max(target[0].clone().cpu(), 0)
             for j in range(indices.numel()):
                 class_idx = indices[j].item() #Select one of the present ground truth classes
-                print("GT class index is : ",class_idx)
+                class_name = prediction_class_list[class_idx]
+                #print("GT class index is : ",class_idx)
                 #activation = torch.sigmoid(output_var[0,class_idx,:,:]).clone().cpu()
                 activation = output_var[0,class_idx,:,:].clone().cpu()
 
@@ -364,9 +368,9 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,vis
 
                 if(vis is not None):
                     #heat = heatmap.numpy()
-                    text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + str(class_idx)
-                    vis.text(text_to_display)
-                    vis.image(heatmap)
+                    text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + str(class_name)
+                    #vis.text(text_to_display)
+                    vis.image(heatmap,opts={'title': text_to_display})
 
                 heatmaps = torch.cat((heatmaps, torch.from_numpy(heatmap).unsqueeze(0).float()), 0)
 
