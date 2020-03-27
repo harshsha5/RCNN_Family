@@ -18,7 +18,7 @@ from fast_rcnn.nms_wrapper import nms
 from fast_rcnn.bbox_transform import bbox_transform_inv, clip_boxes
 from datasets.factory import get_imdb
 from fast_rcnn.config import cfg, cfg_from_file, get_output_dir
-
+import pdb
 import visdom
 # hyper-parameters
 # ------------
@@ -99,6 +99,7 @@ def test_net(name,
              step=None):
     """Test a Fast R-CNN network on an image database."""
     num_images = len(imdb.image_index)
+    num_images = 50 #Limiting number of images for testing! Remove this line once code is tested
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
     #    (x1, y1, x2, y2, score)
@@ -112,7 +113,6 @@ def test_net(name,
     det_file = os.path.join(output_dir, 'detections.pkl')
 
     roidb = imdb.roidb
-
     for i in range(num_images):
         im = cv2.imread(imdb.image_path_at(i))
         rois = imdb.roidb[i]['boxes']
@@ -122,7 +122,7 @@ def test_net(name,
 
         _t['misc'].tic()
         if visualize:
-            # im2show = np.copy(im[:, :, (2, 1, 0)])
+            #im2show = np.copy(im[:, :, (2, 1, 0)])
             im2show = np.copy(im)
 
         # skip j = 0, because it's the background class
@@ -136,7 +136,7 @@ def test_net(name,
             keep = nms(cls_dets, cfg.TEST.NMS)
             cls_dets = cls_dets[keep, :]
             if visualize:
-                im2show = vis_detections(im2show, imdb.classes[j], cls_dets)
+                im2show = vis_detections(im2show, imdb.classes[newj], cls_dets)
             all_boxes[j][i] = cls_dets
 
         # Limit to max_per_image detections *over all classes*
@@ -153,12 +153,14 @@ def test_net(name,
         print('im_detect: {:d}/{:d} {:.3f}s {:.3f}s'.format(
             i + 1, num_images, detect_time, nms_time))
 
-        if visualize and np.random.rand() < 0.01:
+        if visualize and np.random.rand() < 0.1:
             # TODO: Visualize images and bbox to show here using tensorboard
             # TODO: use the logger that is an argument to this function
-            print('Visualizing')
-            if(i<3):    #Limiting image prints to 3 per step
-                writer.add_image('Validation_Images_'+str(step)+'_'+str(i), im2show) 
+            if(i<10):    #Limiting image prints to 3 per step
+                print('Visualizing')
+                im2show = np.swapaxes(im2show,0,2)
+                im2show = np.swapaxes(im2show,1,2)
+                logger.add_image('Validation_Images_'+str(step)+'_'+str(i), im2show)
 
     with open(det_file, 'wb') as f:
         cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)

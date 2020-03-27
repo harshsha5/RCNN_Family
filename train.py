@@ -50,17 +50,17 @@ start_step = 0
 # end_step = 30000
 
 vis_interval = 10
-hist_interval = 20
+hist_interval = 200
 end_step = 100
-eval_interval = 25
+eval_interval = 450
 
 lr_decay_steps = {150000}
 lr_decay = 1. / 10
 
 rand_seed = 1024
 _DEBUG = False
-use_tensorboard = True 
-use_visdom = False
+use_tensorboard = True
+use_visdom = True
 log_grads = False
 
 remove_all_log = False  # remove all historical experiments in TensorBoard
@@ -140,16 +140,13 @@ if use_tensorboard:
 
 if use_visdom:
     import visdom
-    vis = visdom.Visdom(server='http://ec2-18-188-81-147.us-east-2.compute.amazonaws.com/',port='8097') 
-    loss_window = vis.line(
-    Y=torch.zeros((1)).cpu(),
-    X=torch.zeros((1)).cpu(),
-    opts=dict(xlabel='step',ylabel='Loss',title='training loss',legend=['Loss']))
+    vis = visdom.Visdom(server='ec2-3-134-117-208.us-east-2.compute.amazonaws.com',port='8097')
 
 #Create Validation Data
 imdb_name_val = 'voc_2007_test'
 imdb_val = get_imdb(imdb_name_val)
 imdb_val.competition_mode(on=True)
+save_name = '{}_{}'
 
 # training
 train_loss = 0
@@ -189,9 +186,9 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
-    if step % eval_interval ==0:
+    if step+1 % eval_interval ==0:
         net.eval()
-        aps = test_net('{}', net, imdb_val, logger=writer, visualize=visualize, step=step)
+        aps = test_net(name = save_name, net = net, imdb = imdb_val, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)
 
         if(step==end_step):
@@ -202,12 +199,12 @@ for step in range(start_step, end_step + 1):
                 class_name = imdb_val._classes[elt]
                 print(str(class_name) + "_AP: ",ap[elt])
 
-        if visualize: 
+        if visualize:
             if use_visdom:
                 if step==0:
                     val_mAP_window = vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,opts=dict(xlabel='step',ylabel='Validation_mAP',title='Validation mAP',legend=['Validation mAP']))
                 else:
-                    vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,win=val_mAP_window,update='append')  
+                    vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,win=val_mAP_window,update='append')
             if use_tensorboard:
                 for elt in aps:
                     class_name = imdb_val._classes[elt]
@@ -230,14 +227,14 @@ for step in range(start_step, end_step + 1):
                 else:
                     vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append')
 
-        if step % hist_interval == 0:
+        if step+1 % hist_interval == 0:
             #Get Histograms here
             if use_tensorboard:
-                for param in net.parameters():
-                    pdb.set_trace()
+                for name,param in net.named_parameters():
+                    #pdb.set_trace()
                     if(param.requires_grad):
-                        pdb.set_trace()
-                        print(param.data)
+                        #pdb.set_trace()
+                        writer.add_histogram(name, param.detach().cpu(), step)
 
     # Save model occasionally
     if (step % cfg.TRAIN.SNAPSHOT_ITERS == 0) and step > 0:
