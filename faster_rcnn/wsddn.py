@@ -108,11 +108,10 @@ class WSDDN(nn.Module):
         x_c = F.relu(self.fc8c(x))
         x_d = F.relu(self.fc8d(x))
 
-        out_c = F.softmax(x_c, dim = 1)     #See what dim to use here
-        out_d = F.softmax(x_d, dim = 0)     #See what dim to use here
+        out_c = F.softmax(x_c, dim = 1)     
+        out_d = F.softmax(x_d, dim = 0)     
 
         cls_prob = out_c * out_d
-        #cls_prob = torch.sum(final_score, dim = 1)      #See sizes here and hence the dim
 
         if self.training:
             label_vec = torch.from_numpy(gt_vec).cuda().float()

@@ -20,6 +20,7 @@ from datasets.factory import get_imdb
 from fast_rcnn.config import cfg, cfg_from_file
 import gc
 import pdb
+from test import test_net
 
 try:
     from termcolor import cprint
@@ -41,10 +42,18 @@ cfg_file = 'experiments/cfgs/wsddn.yml'
 pretrained_model = 'data/pretrained_model/alexnet_imagenet.npy'
 output_dir = 'models/saved_model'
 visualize = True
-vis_interval = 500
-
 start_step = 0
-end_step = 30000
+
+# vis_interval = 500
+# hist_interval = 2000
+# eval_interval = 5000
+# end_step = 30000
+
+vis_interval = 10
+hist_interval = 20
+end_step = 100
+eval_interval = 25
+
 lr_decay_steps = {150000}
 lr_decay = 1. / 10
 
@@ -137,6 +146,11 @@ if use_visdom:
     X=torch.zeros((1)).cpu(),
     opts=dict(xlabel='step',ylabel='Loss',title='training loss',legend=['Loss']))
 
+#Create Validation Data
+imdb_name_val = 'voc_2007_test'
+imdb_val = get_imdb(imdb_name_val)
+imdb_val.competition_mode(on=True)
+
 # training
 train_loss = 0
 tp, tf, fg, bg = 0., 0., 0, 0
@@ -175,28 +189,55 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
+    if step % eval_interval ==0:
+        net.eval()
+        aps = test_net('{}', net, imdb_val, logger=writer, visualize=visualize, step=step)
+        mAP = np.mean(aps)
 
+        if(step==end_step):
+            print("Final Step Result")
+            print("Final mAP is: ",mAP)
+            print("Final class-wise AP is: ")
+            for elt in aps:
+                class_name = imdb_val._classes[elt]
+                print(str(class_name) + "_AP: ",ap[elt])
 
-
-
-
-
+        if visualize: 
+            if use_visdom:
+                if step==0:
+                    val_mAP_window = vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,opts=dict(xlabel='step',ylabel='Validation_mAP',title='Validation mAP',legend=['Validation mAP']))
+                else:
+                    vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,win=val_mAP_window,update='append')  
+            if use_tensorboard:
+                for elt in aps:
+                    class_name = imdb_val._classes[elt]
+                    writer.add_scalar('Validation/AP_' + str(class_name), aps[elt], step)
+        net.train()
 
     #TODO: Perform all visualizations here
     #You can define other interval variable if you want (this is just an
     #example)
     #The intervals for different things are defined in the handout
-    if visualize and step % vis_interval == 0:
-        #TODO: Create required visualizations
-        if use_tensorboard:
-            #print('Logging to Tensorboard')
-            writer.add_scalar('Train/Loss', loss, step)
-        if use_visdom:
-            #print('Logging to visdom')
-            vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append') #EDIT THIS
-            #vis.line(X=torch.ones((1,1)).cpu()*step,Y=torch.Tensor([loss]).unsqueeze(0).cpu(),win=loss_window,update='append')
+    if visualize:
+        if step % vis_interval == 0:
+            #TODO: Create required visualizations
+            if use_tensorboard:
+                #print('Logging to Tensorboard')
+                writer.add_scalar('Train/Loss', loss, step)
+            if use_visdom:
+                if step==0:
+                    loss_window = vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),opts=dict(xlabel='step',ylabel='Loss',title='training loss',legend=['Loss']))
+                else:
+                    vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append')
 
-
+        if step % hist_interval == 0:
+            #Get Histograms here
+            if use_tensorboard:
+                for param in net.parameters():
+                    pdb.set_trace()
+                    if(param.requires_grad):
+                        pdb.set_trace()
+                        print(param.data)
 
     # Save model occasionally
     if (step % cfg.TRAIN.SNAPSHOT_ITERS == 0) and step > 0:

@@ -69,19 +69,6 @@ def get_weak_minibatch(roidb, num_classes):
                 labels_this_image[0, elt] = 1
         labels_blob = np.vstack((labels_blob, labels_this_image))
 
-        '''labels_this_image = np.zeros((0,num_classes), dtype=np.float32)
-        if(im_i==0 and labels is None):
-            labels_blob = labels_this_image
-        elif(labels is None):
-            labels_blob = np.vstack((labels_blob, labels_this_image))
-        else:
-            for elt in labels:
-                labels_this_image[elt] = 1
-            if(im_i!=0):
-                labels_blob = np.vstack((labels_blob, labels_this_image))
-            else:
-                labels_blob = labels_this_image'''
-
     blobs['rois'] = rois_blob
     blobs['labels'] = labels_blob
     blobs['im_name'] = os.path.basename(roidb[0]['image'])

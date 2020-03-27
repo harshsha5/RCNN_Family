@@ -154,14 +154,11 @@ def test_net(name,
             i + 1, num_images, detect_time, nms_time))
 
         if visualize and np.random.rand() < 0.01:
-            # TODO: Visualize here using tensorboard
+            # TODO: Visualize images and bbox to show here using tensorboard
             # TODO: use the logger that is an argument to this function
             print('Visualizing')
-
-
-
-
-
+            if(i<3):    #Limiting image prints to 3 per step
+                writer.add_image('Validation_Images_'+str(step)+'_'+str(i), im2show) 
 
     with open(det_file, 'wb') as f:
         cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)
