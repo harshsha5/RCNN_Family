@@ -50,7 +50,7 @@ lr_decay = 1. / 10
 
 rand_seed = 1024
 _DEBUG = False
-use_tensorboard = False
+use_tensorboard = True 
 use_visdom = False
 log_grads = False
 
@@ -107,11 +107,17 @@ net.train()
 # TODO: Create optimizer for network parameters from conv2 onwards
 # (do not optimize conv1)
 
-for param in net.parameters():
-        pdb.set_trace()
-        param.requires_grad = False     #Freeze the features part of the network
+conv_layer_numbers = [0,3,6,8,10]
+for elt in conv_layer_numbers:
+   net.features[elt].weight.requires_grad = False
+   net.features[elt].bias.requires_grad = False
 
-optimizer = torch.optim.SGD(params, lr=lr, momentum=momentum, weight_decay=weight_decay)
+'''for param in net.parameters():
+        print(param.shape)
+        print(param.requires_grad)     #Freeze the features part of the network
+        print("==================================================================================")'''
+
+optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)

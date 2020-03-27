@@ -69,8 +69,8 @@ class WSDDN(nn.Module):
                     nn.Conv2d(256, 256, kernel_size=3, padding=1),
                     nn.ReLU(inplace=True))
 
-        self.roi_pool = RoIPool(7, 7, 1.0/16)       #Check Size
-        self.fc6 = nn.Linear(4096, 4096)            #Check Size
+        self.roi_pool = RoIPool(6, 6, 1.0/16)       #Check Size
+        self.fc6 = nn.Linear(256*6*6, 4096)            #Check Size
         self.fc7 = nn.Linear(4096, 4096)
         self.fc8c = nn.Linear(4096, self.n_classes)
         self.fc8d = nn.Linear(4096, self.n_classes)
@@ -100,7 +100,6 @@ class WSDDN(nn.Module):
         #TODO: Use im_data and rois as input
         # compute cls_prob which are N_roi X 20 scores
         # Checkout faster_rcnn.py for inspiration
-        pdb.set_trace()
         x = self.features(im_data)
         x = self.roi_pool(x, rois)
         x = x.view(x.size()[0], -1)
@@ -109,15 +108,15 @@ class WSDDN(nn.Module):
         x_c = F.relu(self.fc8c(x))
         x_d = F.relu(self.fc8d(x))
 
-        out_c = F.softmax(x_c, dim = 2)     #See what dim to use here
-        out_d = F.softmax(x_d, dim = 1)     #See what dim to use here
+        out_c = F.softmax(x_c, dim = 1)     #See what dim to use here
+        out_d = F.softmax(x_d, dim = 0)     #See what dim to use here
 
-        final_score = out_c * out_d
-        cls_prob = torch.sum(final_score, dim = 1)      #See sizes here and hence the dim
+        cls_prob = out_c * out_d
+        #cls_prob = torch.sum(final_score, dim = 1)      #See sizes here and hence the dim
 
         if self.training:
             label_vec = torch.from_numpy(gt_vec).cuda().float()
-            label_vec = label_vec.view(self.n_classes, -1)
+            #label_vec = label_vec.view(self.n_classes, -1)
             self.cross_entropy = self.build_loss(cls_prob, label_vec)
         return cls_prob
 
@@ -131,9 +130,9 @@ class WSDDN(nn.Module):
         """
         #TODO: Compute the appropriate loss using the cls_prob that is the
         #output of forward()
-        #Checkout forward() to see how it is called 
-
-        cross_entropy = F.cross_entropy(cls_score, label_vec)
+        #Checkout forward() to see how it is called
+        cls_score = torch.sum(cls_prob, dim = 0,keepdim=True)
+        cross_entropy = F.binary_cross_entropy(cls_score, label_vec)
         return cross_entropy
 
     def detect(self, image, rois, thr=0.3):
