@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 import _init_paths
 import os
+from tensorboardX import SummaryWriter
 import torch
 import torch.utils.model_zoo as model_zoo
 from torch.nn.parameter import Parameter
@@ -49,10 +50,10 @@ start_step = 0
 # eval_interval = 5000
 # end_step = 30000
 
-vis_interval = 10
-hist_interval = 20
-end_step = 100
-eval_interval = 450
+vis_interval = 25
+hist_interval = 50
+end_step = 1000
+eval_interval = 500
 
 lr_decay_steps = {150000}
 lr_decay = 1. / 10
@@ -186,7 +187,7 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
-    if step+1 % eval_interval ==0:
+    if (step+1) % eval_interval ==0:
         net.eval()
         aps = test_net(name = save_name, net = net, imdb = imdb_val, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)
@@ -231,15 +232,15 @@ for step in range(start_step, end_step + 1):
         if (step+1) % hist_interval == 0:
             #Get Histograms here
             print("Getting Histogram")
-            pdb.set_trace()
             if use_tensorboard:
                 state_dict = net.state_dict()
                 for k,v in state_dict.items():
                     if('weight' in k):
-                        writer.add_histogram('Weights'+str(k),v,step)
+                        writer.add_histogram('Weights_'+str(k),v,step)
 
                 for name,param in net.named_parameters():
-                    writer.add_histogram('Gradients' + str(name), param.grad, step)
+                    if(param.requires_grad and param.grad is not None):
+                        writer.add_histogram('Gradients_' + str(name), param.grad, step)
                 '''for name,param in net.named_parameters():
                     #pdb.set_trace()
                     if(param.requires_grad):
