@@ -41,7 +41,7 @@ cfg_file = 'experiments/cfgs/wsddn.yml'
 pretrained_model = 'data/pretrained_model/alexnet_imagenet.npy'
 output_dir = 'models/saved_model'
 visualize = True
-vis_interval = 5000
+vis_interval = 500
 
 start_step = 0
 end_step = 30000
@@ -107,16 +107,29 @@ net.train()
 # TODO: Create optimizer for network parameters from conv2 onwards
 # (do not optimize conv1)
 
+for param in net.parameters():
+        pdb.set_trace()
+        param.requires_grad = False     #Freeze the features part of the network
 
-
-
-
-
-
-
+optimizer = torch.optim.SGD(params, lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
+
+if use_tensorboard:
+    from tensorboardX import SummaryWriter
+    import time
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    save_path = "runs/"+timestr+'/'
+    writer = SummaryWriter(save_path)
+
+if use_visdom:
+    import visdom
+    vis = visdom.Visdom(server='http://ec2-18-188-81-147.us-east-2.compute.amazonaws.com/',port='8097') 
+    loss_window = vis.line(
+    Y=torch.zeros((1)).cpu(),
+    X=torch.zeros((1)).cpu(),
+    opts=dict(xlabel='step',ylabel='Loss',title='training loss',legend=['Loss']))
 
 # training
 train_loss = 0
@@ -170,10 +183,12 @@ for step in range(start_step, end_step + 1):
     if visualize and step % vis_interval == 0:
         #TODO: Create required visualizations
         if use_tensorboard:
-            print('Logging to Tensorboard')
+            #print('Logging to Tensorboard')
+            writer.add_scalar('Train/Loss', loss, step)
         if use_visdom:
-            print('Logging to visdom')
-
+            #print('Logging to visdom')
+            vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append') #EDIT THIS
+            #vis.line(X=torch.ones((1,1)).cpu()*step,Y=torch.Tensor([loss]).unsqueeze(0).cpu(),win=loss_window,update='append')
 
 
 
@@ -194,3 +209,5 @@ for step in range(start_step, end_step + 1):
         step_cnt = 0
         t.tic()
         re_cnt = False
+
+writer.close()

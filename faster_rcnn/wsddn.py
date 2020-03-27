@@ -55,18 +55,25 @@ class WSDDN(nn.Module):
             print(classes)
 
         #TODO: Define the WSDDN model (look at faster_rcnn.py)
+        self.features = nn.Sequential(
+                    nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
+                    nn.ReLU(inplace=True),
+                    nn.MaxPool2d(kernel_size=3, stride=2),
+                    nn.Conv2d(64, 192, kernel_size=5, padding=2),
+                    nn.ReLU(inplace=True),
+                    nn.MaxPool2d(kernel_size=3, stride=2),
+                    nn.Conv2d(192, 384, kernel_size=3, padding=1),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(384, 256, kernel_size=3, padding=1),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(256, 256, kernel_size=3, padding=1),
+                    nn.ReLU(inplace=True))
 
-
-
-
-
-
-
-
-
-
-
-
+        self.roi_pool = RoIPool(7, 7, 1.0/16)       #Check Size
+        self.fc6 = nn.Linear(4096, 4096)            #Check Size
+        self.fc7 = nn.Linear(4096, 4096)
+        self.fc8c = nn.Linear(4096, self.n_classes)
+        self.fc8d = nn.Linear(4096, self.n_classes)
 
         # loss
         self.cross_entropy = None
@@ -93,14 +100,20 @@ class WSDDN(nn.Module):
         #TODO: Use im_data and rois as input
         # compute cls_prob which are N_roi X 20 scores
         # Checkout faster_rcnn.py for inspiration
+        pdb.set_trace()
+        x = self.features(im_data)
+        x = self.roi_pool(x, rois)
+        x = x.view(x.size()[0], -1)
+        x = F.relu(self.fc6(x))
+        x = F.relu(self.fc7(x))
+        x_c = F.relu(self.fc8c(x))
+        x_d = F.relu(self.fc8d(x))
 
+        out_c = F.softmax(x_c, dim = 2)     #See what dim to use here
+        out_d = F.softmax(x_d, dim = 1)     #See what dim to use here
 
-
-
-
-
-
-
+        final_score = out_c * out_d
+        cls_prob = torch.sum(final_score, dim = 1)      #See sizes here and hence the dim
 
         if self.training:
             label_vec = torch.from_numpy(gt_vec).cuda().float()
@@ -120,17 +133,8 @@ class WSDDN(nn.Module):
         #output of forward()
         #Checkout forward() to see how it is called 
 
-
-
-
-
-
-
-
-
-
-
-        return bceloss
+        cross_entropy = F.cross_entropy(cls_score, label_vec)
+        return cross_entropy
 
     def detect(self, image, rois, thr=0.3):
         im_data, im_scales = self.get_image_blob(image)
