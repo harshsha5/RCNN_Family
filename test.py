@@ -99,7 +99,7 @@ def test_net(name,
              step=None):
     """Test a Fast R-CNN network on an image database."""
     num_images = len(imdb.image_index)
-    num_images = 50 #Limiting number of images for testing! Remove this line once code is tested
+    #num_images = 50 #Limiting number of images for testing! Remove this line once code is tested
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
     #    (x1, y1, x2, y2, score)

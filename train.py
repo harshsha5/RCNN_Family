@@ -50,7 +50,7 @@ start_step = 0
 # end_step = 30000
 
 vis_interval = 10
-hist_interval = 200
+hist_interval = 20
 end_step = 100
 eval_interval = 450
 
@@ -190,14 +190,14 @@ for step in range(start_step, end_step + 1):
         net.eval()
         aps = test_net(name = save_name, net = net, imdb = imdb_val, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)
-
+        print("Average Precisions are: ",aps)
         if(step==end_step):
             print("Final Step Result")
             print("Final mAP is: ",mAP)
             print("Final class-wise AP is: ")
-            for elt in aps:
-                class_name = imdb_val._classes[elt]
-                print(str(class_name) + "_AP: ",ap[elt])
+            for id,elt in enumerate(aps):
+                class_name = imdb_val._classes[id]
+                print(str(class_name) + "_AP: ",aps[id])
 
         if visualize:
             if use_visdom:
@@ -206,9 +206,9 @@ for step in range(start_step, end_step + 1):
                 else:
                     vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,win=val_mAP_window,update='append')
             if use_tensorboard:
-                for elt in aps:
-                    class_name = imdb_val._classes[elt]
-                    writer.add_scalar('Validation/AP_' + str(class_name), aps[elt], step)
+                for id,elt in enumerate(aps):
+                    class_name = imdb_val._classes[id]
+                    writer.add_scalar('Validation/AP_' + str(class_name), aps[id], step)
         net.train()
 
     #TODO: Perform all visualizations here
@@ -217,6 +217,7 @@ for step in range(start_step, end_step + 1):
     #The intervals for different things are defined in the handout
     if visualize:
         if step % vis_interval == 0:
+            print("Visualizing Loss")
             #TODO: Create required visualizations
             if use_tensorboard:
                 #print('Logging to Tensorboard')
@@ -226,15 +227,24 @@ for step in range(start_step, end_step + 1):
                     loss_window = vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),opts=dict(xlabel='step',ylabel='Loss',title='training loss',legend=['Loss']))
                 else:
                     vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append')
-
-        if step+1 % hist_interval == 0:
+        #print(hist_interval)
+        if (step+1) % hist_interval == 0:
             #Get Histograms here
+            print("Getting Histogram")
+            pdb.set_trace()
             if use_tensorboard:
+                state_dict = net.state_dict()
+                for k,v in state_dict.items():
+                    if('weight' in k):
+                        writer.add_histogram('Weights'+str(k),v,step)
+
                 for name,param in net.named_parameters():
+                    writer.add_histogram('Gradients' + str(name), param.grad, step)
+                '''for name,param in net.named_parameters():
                     #pdb.set_trace()
                     if(param.requires_grad):
                         #pdb.set_trace()
-                        writer.add_histogram(name, param.detach().cpu(), step)
+                        writer.add_histogram(name, param.detach().cpu(), step)'''
 
     # Save model occasionally
     if (step % cfg.TRAIN.SNAPSHOT_ITERS == 0) and step > 0:
