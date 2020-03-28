@@ -111,6 +111,16 @@ for name, param in pret_net.items():
         print('Did not find {}'.format(name))
         continue
 
+fc_layer_numbers = [1,4]
+#fc_layers_net = [fc6,fc7]
+for i,elt in enumerate(fc_layer_numbers):
+    print("Copied Classifier Linear Layer",str(elt))
+    if(elt==1):
+         net.fc6.weight.data.copy_(pret_net['classifier.1.weight'].data)
+         net.fc6.bias.data.copy_(pret_net['classifier.1.bias'].data)
+    else:
+         net.fc7.weight.data.copy_(pret_net['classifier.4.weight'].data)
+         net.fc7.bias.data.copy_(pret_net['classifier.4.bias'].data)
 # Move model to GPU and set train mode
 net.load_state_dict(own_state)
 net.cuda()
@@ -142,7 +152,7 @@ if use_tensorboard:
 
 if use_visdom:
     import visdom
-    vis = visdom.Visdom(server='ec2-3-134-117-208.us-east-2.compute.amazonaws.com',port='8097')
+    vis = visdom.Visdom(server='http://ec2-18-221-23-36.us-east-2.compute.amazonaws.com/',port='8097')
 
 #Create Validation Data
 imdb_name_val = 'voc_2007_test'
@@ -150,6 +160,7 @@ imdb_val = get_imdb(imdb_name_val)
 imdb_val.competition_mode(on=True)
 save_name = '{}_{}'
 thresh = 0.0001
+map_list = []
 
 # training
 train_loss = 0
@@ -189,13 +200,14 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
-    if (step) % eval_interval ==0:
+    if (step) % eval_interval ==0 and step!=0:
         net.eval()
         aps = test_net(name = save_name, net = net, imdb = imdb_val, thresh = thresh, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)
         print("Average Precisions are: ",aps)
         if(step==last_eval_step):
             print("Final Step Result")
+            print("All MAP's ",map_list)
             print("Final mAP is: ",mAP)
             print("Final class-wise AP is: ")
             for id,elt in enumerate(aps):
@@ -204,7 +216,7 @@ for step in range(start_step, end_step + 1):
 
         if visualize:
             if use_visdom:
-                if step==0:
+                if len(map_list)==0:
                     val_mAP_window = vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,opts=dict(xlabel='step',ylabel='Validation_mAP',title='Validation mAP',legend=['Validation mAP']))
                 else:
                     vis.line(X=torch.ones((1)).cpu()*step,Y=torch.ones((1)).cpu()*mAP,win=val_mAP_window,update='append')
@@ -213,6 +225,7 @@ for step in range(start_step, end_step + 1):
                     class_name = imdb_val._classes[id]
                     writer.add_scalar('Validation/AP_' + str(class_name), aps[id], step)
         net.train()
+        map_list.append(mAP)
 
     #TODO: Perform all visualizations here
     #You can define other interval variable if you want (this is just an
