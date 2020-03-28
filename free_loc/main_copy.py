@@ -20,7 +20,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-
+import scipy.misc as sci
 from datasets.factory import get_imdb
 from torchvision.utils import make_grid
 from custom import *
@@ -251,16 +251,6 @@ def main():
         # train for one epoch
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer, trainval_imdb._classes,vis)
 
-        #Plot Histograms
-        state_dict = model.state_dict()
-        for k,v in state_dict.items():
-            if('weight' in k):
-                writer.add_histogram('Weights_'+str(k),v,epoch)
-
-        for name,param in model.named_parameters():
-            if(param.requires_grad and param.grad is not None):
-                writer.add_histogram('Gradients_' + str(name), param.grad, epoch)
-
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
@@ -280,6 +270,16 @@ def main():
             }, is_best)
             if(is_best):
                 torch.save(model.state_dict(), MODEL_SAVE_PATH)
+
+        #Plot Histograms
+        state_dict = model.state_dict()
+        for k,v in state_dict.items():
+            if('weight' in k):
+                writer.add_histogram('Weights_'+str(k),v,epoch)
+
+        for name,param in model.named_parameters():
+            if(param.requires_grad and param.grad is not None):
+                writer.add_histogram('Gradients_' + str(name), param.grad, epoch)
 
     writer.close()
 
@@ -352,17 +352,17 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
         #TODO: Visualize at appropriate intervals
         if(i==0 or i==len(train_loader)-1):   #Makes sure this visualization is twice per epoch: Once in the first batch and once in the last batch
             #Plot the first image of each batch
-            writer.add_image('Train_Images_'+str(epoch)+'_'+str(iter_cnt), input[0]) 
+            #writer.add_image('Train_Images_'+str(epoch)+'_'+str(iter_cnt), input[0]) 
             if(vis is not None):
-                im = input[0].numpy()
-                vis.image(im)
+                #im = input[0].numpy()
+                #vis.image(im)
                 original_image = inv_transform(input[0].clone()).cpu().detach().numpy()
-                vis.image(original_image,opts={'title': "Original Image_"+str(epoch) + '_' + str(i)})
+                vis.image(original_image,opts={'title': "Training_Original Image_"+str(epoch) + '_' + str(i)})
 
 
             #Getting heatmap
             EPS = 0.000001
-            heatmaps = inv_transform(input[0].clone()).unsqueeze(0)
+            heatmaps = inv_transform(input[0].clone().cpu()).unsqueeze(0)
             values, indices = torch.max(target[0].clone().cpu(), 0)
             for j in range(indices.numel()):
                 class_idx = indices[j].item() #Select one of the present ground truth classes
@@ -370,19 +370,25 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
                 #print("GT class index is : ",class_idx)
                 #activation = torch.sigmoid(output_var[0,class_idx,:,:]).clone().cpu()
                 activation = output_var[0,class_idx,:,:].clone().cpu()
-                pdb.set_trace()
-                heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
+                #pdb.set_trace()
+                heatmap = activation.detach().numpy()
+                heatmap = sci.imresize(heatmap, (input[0].shape[2], input[0].shape[1]))
+                #heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
                 heatmap = np.uint8(255 * heatmap)
                 heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
                 heatmap = np.swapaxes(heatmap,0,2)
                 heatmap = np.swapaxes(heatmap,1,2)
+                #heatmap = np.maximum(heatmap, 0)
+                #heatmap /= np.max(heatmap)
 
                 if(vis is not None):
                     #heat = heatmap.numpy()
                     text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + str(class_name)
                     #vis.text(text_to_display)
                     vis.image(heatmap,opts={'title': text_to_display})
-
+                ''' heatmap = np.repeat(heatmap[:, :, np.newaxis], 3, axis=2)
+                heatmap = np.swapaxes(heatmap,0,2)
+                heatmap = np.swapaxes(heatmap,1,2)'''
                 heatmaps = torch.cat((heatmaps, torch.from_numpy(heatmap).unsqueeze(0).float()), 0)
 
             img_grid = make_grid(heatmaps)
@@ -464,7 +470,7 @@ def validate(val_loader, model, criterion,epoch,vis=None):
         #TODO: Visualize at appropriate intervals
         if(epoch==args.epochs-1 and vis is not None and i==0):
             for image_cnt in range(10):
-                original_image = inv_transform(input[0].clone()).cpu().detach().numpy()
+                original_image = inv_transform(input[image_cnt].clone()).cpu().detach().numpy()
                 vis.image(original_image,opts={'title': "Validation_Set_Original Image_"+str(image_cnt)})
 
 
