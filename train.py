@@ -45,15 +45,17 @@ output_dir = 'models/saved_model'
 visualize = True
 start_step = 0
 
-# vis_interval = 500
-# hist_interval = 2000
-# eval_interval = 5000
-# end_step = 30000
+vis_interval = 500
+hist_interval = 2000
+eval_interval = 5000
+end_step = 30000
 
-vis_interval = 25
-hist_interval = 50
-end_step = 1000
-eval_interval = 500
+#vis_interval = 10
+#hist_interval = 20
+#end_step = 100
+#eval_interval = 50
+eval_pts = np.arange(0,end_step+1,eval_interval)
+last_eval_step = eval_pts[-1]
 
 lr_decay_steps = {150000}
 lr_decay = 1. / 10
@@ -117,7 +119,7 @@ net.train()
 # TODO: Create optimizer for network parameters from conv2 onwards
 # (do not optimize conv1)
 
-conv_layer_numbers = [0,3,6,8,10]
+conv_layer_numbers = [0]
 for elt in conv_layer_numbers:
    net.features[elt].weight.requires_grad = False
    net.features[elt].bias.requires_grad = False
@@ -133,7 +135,6 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 if use_tensorboard:
-    from tensorboardX import SummaryWriter
     import time
     timestr = time.strftime("%Y%m%d-%H%M%S")
     save_path = "runs/"+timestr+'/'
@@ -148,6 +149,7 @@ imdb_name_val = 'voc_2007_test'
 imdb_val = get_imdb(imdb_name_val)
 imdb_val.competition_mode(on=True)
 save_name = '{}_{}'
+thresh = 0.0001
 
 # training
 train_loss = 0
@@ -187,12 +189,12 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
-    if (step+1) % eval_interval ==0:
+    if (step) % eval_interval ==0:
         net.eval()
-        aps = test_net(name = save_name, net = net, imdb = imdb_val, logger=writer, visualize=visualize, step=step)
+        aps = test_net(name = save_name, net = net, imdb = imdb_val, thresh = thresh, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)
         print("Average Precisions are: ",aps)
-        if(step==end_step):
+        if(step==last_eval_step):
             print("Final Step Result")
             print("Final mAP is: ",mAP)
             print("Final class-wise AP is: ")
@@ -229,7 +231,7 @@ for step in range(start_step, end_step + 1):
                 else:
                     vis.line(X=torch.ones((1)).cpu()*step,Y=torch.Tensor([loss]).cpu(),win=loss_window,update='append')
         #print(hist_interval)
-        if (step+1) % hist_interval == 0:
+        if step % hist_interval == 0:
             #Get Histograms here
             print("Getting Histogram")
             if use_tensorboard:
