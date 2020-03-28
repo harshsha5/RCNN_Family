@@ -7,6 +7,7 @@ sys.path.insert(0, 'faster_rcnn')
 import sklearn
 import sklearn.metrics
 
+from tensorboardX import SummaryWriter
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -24,7 +25,6 @@ from datasets.factory import get_imdb
 from torchvision.utils import make_grid
 from custom import *
 import pdb
-from tensorboardX import SummaryWriter
 import time
 import random
 import cv2
@@ -220,7 +220,7 @@ def main():
 
     if args.vis:
         import visdom
-        vis = visdom.Visdom(server='http://ec2-18-188-81-147.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg
+        vis = visdom.Visdom(server='http://ec2-3-134-117-208.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg   
     else:
         vis = None
 
@@ -251,10 +251,20 @@ def main():
         # train for one epoch
         iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer, trainval_imdb._classes,vis)
 
+        #Plot Histograms
+        state_dict = model.state_dict()
+        for k,v in state_dict.items():
+            if('weight' in k):
+                writer.add_histogram('Weights_'+str(k),v,epoch)
+
+        for name,param in model.named_parameters():
+            if(param.requires_grad and param.grad is not None):
+                writer.add_histogram('Gradients_' + str(name), param.grad, epoch)
+
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            m1, m2 = validate(val_loader, model, criterion)
+            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis)
             writer.add_scalar('Validation/mAP', m1, epoch)
             writer.add_scalar('Validation/f1_score', m2, epoch)
             score = m1 * m2
@@ -360,7 +370,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
                 #print("GT class index is : ",class_idx)
                 #activation = torch.sigmoid(output_var[0,class_idx,:,:]).clone().cpu()
                 activation = output_var[0,class_idx,:,:].clone().cpu()
-
+                pdb.set_trace()
                 heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
                 heatmap = np.uint8(255 * heatmap)
                 heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
@@ -411,7 +421,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
     return iter_cnt
         # End of train()
 
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion,epoch,vis=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     avg_m1 = AverageMeter()
@@ -452,6 +462,13 @@ def validate(val_loader, model, criterion):
                       avg_m2=avg_m2))
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
+        if(epoch==args.epochs-1 and vis is not None and i==0):
+            for image_cnt in range(10):
+                original_image = inv_transform(input[0].clone()).cpu().detach().numpy()
+                vis.image(original_image,opts={'title': "Validation_Set_Original Image_"+str(image_cnt)})
+
+
+
     print(' * Metric1 {avg_m1.avg:.3f} Metric2 {avg_m2.avg:.3f}'.format(
         avg_m1=avg_m1, avg_m2=avg_m2))
     return avg_m1.avg, avg_m2.avg
