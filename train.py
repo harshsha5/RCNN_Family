@@ -121,6 +121,7 @@ for i,elt in enumerate(fc_layer_numbers):
     else:
          net.fc7.weight.data.copy_(pret_net['classifier.4.weight'].data)
          net.fc7.bias.data.copy_(pret_net['classifier.4.bias'].data)
+
 # Move model to GPU and set train mode
 net.load_state_dict(own_state)
 net.cuda()
@@ -152,7 +153,8 @@ if use_tensorboard:
 
 if use_visdom:
     import visdom
-    vis = visdom.Visdom(server='http://ec2-18-221-23-36.us-east-2.compute.amazonaws.com/',port='8097')
+    vis = visdom.Visdom(server='http://ec2-3-16-46-86.us-east-2.compute.amazonaws.com/',port='8097')
+    print("Using Visdom")
 
 #Create Validation Data
 imdb_name_val = 'voc_2007_test'
@@ -200,7 +202,7 @@ for step in range(start_step, end_step + 1):
         re_cnt = True
 
     #TODO: evaluate the model every N iterations (N defined in handout)
-    if (step) % eval_interval ==0 and step!=0:
+    if (step) % eval_interval ==0:
         net.eval()
         aps = test_net(name = save_name, net = net, imdb = imdb_val, thresh = thresh, logger=writer, visualize=visualize, step=step)
         mAP = np.mean(aps)

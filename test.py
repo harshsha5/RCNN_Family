@@ -153,7 +153,7 @@ def test_net(name,
         print('im_detect: {:d}/{:d} {:.3f}s {:.3f}s'.format(
             i + 1, num_images, detect_time, nms_time))
 
-        if visualize and np.random.rand() < 0.1:
+        if visualize and np.random.rand() < 0.25:
             # TODO: Visualize images and bbox to show here using tensorboard
             # TODO: use the logger that is an argument to this function
             if(i<10):    #Limiting image prints to 3 per step

@@ -131,7 +131,7 @@ class WSDDN(nn.Module):
         #output of forward()
         #Checkout forward() to see how it is called
         cls_score = torch.sum(cls_prob, dim = 0,keepdim=True)
-        cross_entropy = F.binary_cross_entropy(cls_score, label_vec)
+        cross_entropy = F.binary_cross_entropy(cls_score, label_vec,reduction='sum')
         return cross_entropy
 
     def detect(self, image, rois, thr=0.3):
