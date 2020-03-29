@@ -120,7 +120,7 @@ parser.add_argument(
 parser.add_argument(
     '--dist-backend', default='gloo', type=str, help='distributed backend')
 parser.add_argument('--vis', action='store_true')
-
+parser.add_argument('--evaluate_code',dest = 'evaluate_code', action='store_true')
 best_prec1 = 0
 
 def apply_maxpool(model_output):
@@ -210,19 +210,26 @@ def main():
         num_workers=args.workers,
         pin_memory=True)
 
-    if args.evaluate:
-        validate(val_loader, model, criterion)
-        return
-
     # TODO: Create loggers for visdom and tboard
     # TODO: You can pass the logger objects to train(), make appropriate
     # modifications to train()
 
     if args.vis:
         import visdom
-        vis = visdom.Visdom(server='http://ec2-3-134-117-208.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg   
+        vis = visdom.Visdom(server='http://ec2-18-221-23-36.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg   
     else:
         vis = None
+
+    if args.evaluate:
+        print("Evaluating model")
+        model.load_state_dict(torch.load(MODEL_SAVE_PATH))
+        model.eval()
+        validate(val_loader, model, criterion,0,vis=vis,prediction_class_list = test_imdb._classes)
+        return
+    else:
+        print("Not evaluating code")
+        pdb.set_trace()
+        return
 
     timestr = time.strftime("%Y%m%d-%H%M%S")
     save_path = "runs/"+timestr+'/'
@@ -254,7 +261,7 @@ def main():
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis)
+            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis,prediction_class_list = test_imdb._classes)
             writer.add_scalar('Validation/mAP', m1, epoch)
             writer.add_scalar('Validation/f1_score', m2, epoch)
             score = m1 * m2
@@ -374,10 +381,10 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
                 heatmap = activation.detach().numpy()
                 heatmap = sci.imresize(heatmap, (input[0].shape[2], input[0].shape[1]))
                 #heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
-                heatmap = np.uint8(255 * heatmap)
+                '''heatmap = np.uint8(255 * heatmap)
                 heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
                 heatmap = np.swapaxes(heatmap,0,2)
-                heatmap = np.swapaxes(heatmap,1,2)
+                heatmap = np.swapaxes(heatmap,1,2)'''
                 #heatmap = np.maximum(heatmap, 0)
                 #heatmap /= np.max(heatmap)
 
@@ -386,9 +393,9 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
                     text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmap_' + str(class_name)
                     #vis.text(text_to_display)
                     vis.image(heatmap,opts={'title': text_to_display})
-                ''' heatmap = np.repeat(heatmap[:, :, np.newaxis], 3, axis=2)
+                heatmap = np.repeat(heatmap[:, :, np.newaxis], 3, axis=2)
                 heatmap = np.swapaxes(heatmap,0,2)
-                heatmap = np.swapaxes(heatmap,1,2)'''
+                heatmap = np.swapaxes(heatmap,1,2)
                 heatmaps = torch.cat((heatmaps, torch.from_numpy(heatmap).unsqueeze(0).float()), 0)
 
             img_grid = make_grid(heatmaps)
@@ -427,7 +434,7 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
     return iter_cnt
         # End of train()
 
-def validate(val_loader, model, criterion,epoch,vis=None):
+def validate(val_loader, model, criterion,epoch,vis=None,prediction_class_list=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     avg_m1 = AverageMeter()
@@ -469,9 +476,20 @@ def validate(val_loader, model, criterion,epoch,vis=None):
         #TODO: Visualize things as mentioned in handout
         #TODO: Visualize at appropriate intervals
         if(epoch==args.epochs-1 and vis is not None and i==0):
-            for image_cnt in range(10):
+            for image_cnt in range(30):
                 original_image = inv_transform(input[image_cnt].clone()).cpu().detach().numpy()
                 vis.image(original_image,opts={'title': "Validation_Set_Original Image_"+str(image_cnt)})
+                values, indices = torch.max(target[image_cnt].clone().cpu(), 0)
+                for j in range(indices.numel()):
+                    class_idx = indices[j].item() #Select one of the present ground truth classes
+                    class_name = prediction_class_list[class_idx]
+
+                    activation = output_var[image_cnt,class_idx,:,:].clone().cpu()
+                    heatmap = activation.detach().numpy()
+                    heatmap = sci.imresize(heatmap, (input[image_cnt].shape[2], input[image_cnt].shape[1]))
+
+                    text_to_display = 'Validation_Set_heatmap' + str(image_cnt) + '_' + str(i) + '_' + 'heatmap_' + str(class_name)
+                    vis.image(heatmap,opts={'title': text_to_display})
 
 
 
