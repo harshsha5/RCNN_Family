@@ -110,10 +110,33 @@ class LocalizerAlexNet(nn.Module):
 
 
 
-class LocalizerAlexNetHighres(nn.Module):
-    def __init__(self, num_classes=20):
-        super(LocalizerAlexNetHighres, self).__init__()
+class LocalizerAlexNetRobust(nn.Module):
+    def __init__(self, num_classes=20,dropout_prob=0.5):
+        super(LocalizerAlexNetRobust, self).__init__()
         #TODO: Ignore for now until instructed
+        self.dropout_prob = dropout_prob
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, dilation=1,ceil_mode=False),
+            nn.Conv2d(64, 192, kernel_size=5, stride=1, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, dilation=1,ceil_mode=False),
+            nn.Conv2d(192, 384, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True)
+        )
+        self.dropout = nn.Dropout(p=self.dropout_prob)
+        self.classifier = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 20, kernel_size=1, stride=1, padding=0)
+        )
 
 
 
@@ -125,16 +148,9 @@ class LocalizerAlexNetHighres(nn.Module):
 
     def forward(self, x):
         #TODO: Ignore for now until instructed
-
-
-
-
-
-
-
-
-
-
+        x = self.features(x)
+        x = self.dropout(x)
+        x = self.classifier(x)
         return x
 
 
@@ -150,30 +166,21 @@ def localizer_alexnet(pretrained=False, **kwargs):
     #TODO: Initialize weights correctly based on whethet it is pretrained or
     # not
 
-
-
-
-
-
-
+    #This has been done in main function itself.
 
 
     return model
 
-
-
-
-
-def localizer_alexnet_robust(pretrained=False, **kwargs):
+def localizer_alexnet_robust(dropout_prob,pretrained=False, **kwargs):
     r"""AlexNet model architecture from the
     `"One weird trick..." <https://arxiv.org/abs/1404.5997>`_ paper.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = LocalizerAlexNetRobust(**kwargs)
+    model = LocalizerAlexNetRobust(dropout_prob = dropout_prob,**kwargs)
     #TODO: Ignore for now until instructed
-
+    #This has been done in main function itself.
 
 
 

@@ -120,13 +120,25 @@ parser.add_argument(
 parser.add_argument(
     '--dist-backend', default='gloo', type=str, help='distributed backend')
 parser.add_argument('--vis', action='store_true')
-parser.add_argument('--evaluate_code',dest = 'evaluate_code', action='store_true')
+parser.add_argument(
+    '--droput_prob',
+    dest='droput_prob',
+    default=0.5,
+    type=float,
+    metavar='droput_prob',
+    help='Dropout for localizer_alexnet_robust')
 best_prec1 = 0
 
 def apply_maxpool(model_output):
     assert(model_output.shape[2]==model_output.shape[3]) #filter map width and height are the same. This should be true for our use case, since model input gets a square image
     pool_kernel_size = model_output.shape[2]
     pool = nn.MaxPool2d(kernel_size = pool_kernel_size, stride=1)
+    return pool(model_output)
+
+def apply_avg_pool(model_output):
+    assert(model_output.shape[2]==model_output.shape[3]) #filter map width and height are the same. This should be true for our use case, since model input gets a square image
+    pool_kernel_size = model_output.shape[2]
+    pool = nn.AvgPool2d(kernel_size = pool_kernel_size, stride=1)
     return pool(model_output)
 
 def main():
@@ -144,7 +156,7 @@ def main():
     if args.arch == 'localizer_alexnet':
         model = localizer_alexnet(pretrained=args.pretrained)
     elif args.arch == 'localizer_alexnet_robust':
-        model = localizer_alexnet_robust(pretrained=args.pretrained)
+        model = localizer_alexnet_robust(droput_prob = args.droput_prob,pretrained=args.pretrained)
     print(model)
 
     model.features = torch.nn.DataParallel(model.features)
@@ -224,7 +236,7 @@ def main():
         print("Evaluating model")
         model.load_state_dict(torch.load(MODEL_SAVE_PATH))
         model.eval()
-        validate(val_loader, model, criterion,0,vis=vis,prediction_class_list = test_imdb._classes)
+        validate(val_loader, model, criterion,0,vis=vis,prediction_class_list = test_imdb._classes,args.arch)
         return
     else:
         print("Not evaluating code")
@@ -256,12 +268,12 @@ def main():
         adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer, trainval_imdb._classes,vis)
+        iter_cnt = train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer, trainval_imdb._classes,vis,args.arch)
 
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis,prediction_class_list = test_imdb._classes)
+            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis,prediction_class_list = test_imdb._classes,args.arch)
             writer.add_scalar('Validation/mAP', m1, epoch)
             writer.add_scalar('Validation/f1_score', m2, epoch)
             score = m1 * m2
@@ -299,7 +311,7 @@ def inv_transform(transformed_tensor):
     return inv_normalize(transformed_tensor)
 
 #TODO: You can add input arguments if you wish
-def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,prediction_class_list,vis=None):
+def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,prediction_class_list,vis=None,model_name = 'localizer_alexnet'):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -320,7 +332,10 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
         # TODO: Get output from model
         output_var = torch.sigmoid(model(input_var))
         # TODO: Perform any necessary functions on the output
-        image_pred = apply_maxpool(output_var)
+        if(model_name == 'localizer_alexnet_robust'):
+            image_pred = apply_avg_pool(output_var)
+        else:
+            image_pred = apply_maxpool(output_var)
         # TODO: Compute loss using ``criterion``
 
         loss = criterion(image_pred.squeeze(), target)
@@ -377,7 +392,6 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
                 #print("GT class index is : ",class_idx)
                 #activation = torch.sigmoid(output_var[0,class_idx,:,:]).clone().cpu()
                 activation = output_var[0,class_idx,:,:].clone().cpu()
-                #pdb.set_trace()
                 heatmap = activation.detach().numpy()
                 heatmap = sci.imresize(heatmap, (input[0].shape[2], input[0].shape[1]))
                 #heatmap = cv2.resize(activation.detach().numpy(), (input[0].shape[2], input[0].shape[1]))
@@ -402,39 +416,13 @@ def train(train_loader, model, criterion, optimizer, epoch, iter_cnt, writer,pre
             text_to_display = str(epoch) + '_' + str(i) + '_' + 'heatmaps'
             writer.add_image(text_to_display, img_grid)
 
-            '''
-            #class_output = output_var[0][class_idx].detach().cpu()
-            activations = output_var[0].cpu()
-            #output_var[:,class_idx,:,:].backward()
-            #gradients = model.get_activations_gradient()
-            gradients = conv_8_out[-1][0][0]
-            #pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
-            pooled_gradients =  gradients.mean(-1).mean(-1).cpu()
-            for i in range(pooled_gradients.shape[0]):
-                activations[i, :, :] *= pooled_gradients[i]
-            heatmap = torch.mean(activations, dim=0)
-        heatmap = heatmap.detach()
-            heatmap = np.maximum(heatmap, 0)
-            heatmap /= torch.max(heatmap)
-            heatmap = heatmap.unsqueeze(0)
-            #gradients = conv_8_out[-1][0][0][class_idx][0]'''
-            '''conv_layer_output_value = conv_8_out[-1][0][0][class_idx][0] * class_output
-            new_conv = conv_layer_output_value.unsqueeze(dim=0)'''
-            ''' writer.add_image('Heatmap_'+str(epoch)+'_'+str(iter_cnt), heatmap)
-            heatmap = np.mean(conv_layer_output_value, axis = -1)
-            heatmap = np.maximum(heatmap, 0)
-            heatmap /= np.max(heatmap)
-            if(vis is not None):
-                heat = heatmap.numpy()
-                vis.image(heat)'''
-
         iter_cnt+=1
     writer.add_scalar('mAP', avg_m1.avg, epoch)
     writer.add_scalar('f1_score', avg_m2.avg, epoch)
     return iter_cnt
         # End of train()
 
-def validate(val_loader, model, criterion,epoch,vis=None,prediction_class_list=None):
+def validate(val_loader, model, criterion,epoch,vis=None,prediction_class_list=None,model_name = 'localizer_alexnet'):
     batch_time = AverageMeter()
     losses = AverageMeter()
     avg_m1 = AverageMeter()
@@ -450,7 +438,12 @@ def validate(val_loader, model, criterion,epoch,vis=None,prediction_class_list=N
         # TODO: Perform any necessary functions on the output
         # TODO: Compute loss using ``criterion``
         output_var = torch.sigmoid(model(input_var))
-        image_pred = apply_maxpool(output_var)
+
+        if(model_name == 'localizer_alexnet_robust'):
+            image_pred = apply_avg_pool(output_var)
+        else:
+            image_pred = apply_maxpool(output_var)
+
         loss = criterion(image_pred.squeeze(), target)
         # measure metrics and record loss
         m1 = metric1(image_pred.squeeze().cpu().data, target)
