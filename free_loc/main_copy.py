@@ -121,11 +121,11 @@ parser.add_argument(
     '--dist-backend', default='gloo', type=str, help='distributed backend')
 parser.add_argument('--vis', action='store_true')
 parser.add_argument(
-    '--droput_prob',
-    dest='droput_prob',
+    '--dropout_prob',
+    dest='dropout_prob',
     default=0.5,
     type=float,
-    metavar='droput_prob',
+    metavar='dropout_prob',
     help='Dropout for localizer_alexnet_robust')
 best_prec1 = 0
 
@@ -146,17 +146,16 @@ def main():
     if rand_seed is not None:
         np.random.seed(rand_seed)
         torch.manual_seed(rand_seed)
-    MODEL_SAVE_PATH = "Saved_Models/localizer_alexnet_" + str(rand_seed)
     global args, best_prec1
     args = parser.parse_args()
     args.distributed = args.world_size > 1
-
+    MODEL_SAVE_PATH = "Saved_Models/" + str(args.arch) + "_"+ str(rand_seed)
     # create model
     print("=> creating model '{}'".format(args.arch))
     if args.arch == 'localizer_alexnet':
         model = localizer_alexnet(pretrained=args.pretrained)
     elif args.arch == 'localizer_alexnet_robust':
-        model = localizer_alexnet_robust(droput_prob = args.droput_prob,pretrained=args.pretrained)
+        model = localizer_alexnet_robust(dropout_prob = args.dropout_prob,pretrained=args.pretrained)
     print(model)
 
     model.features = torch.nn.DataParallel(model.features)
@@ -228,7 +227,7 @@ def main():
 
     if args.vis:
         import visdom
-        vis = visdom.Visdom(server='http://ec2-18-221-23-36.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg   
+        vis = visdom.Visdom(server='http://ec2-3-20-236-149.us-east-2.compute.amazonaws.com/',port='8097') #Change Address as per need. Can change to commandline arg   
     else:
         vis = None
 
@@ -236,12 +235,11 @@ def main():
         print("Evaluating model")
         model.load_state_dict(torch.load(MODEL_SAVE_PATH))
         model.eval()
-        validate(val_loader, model, criterion,0,vis=vis,prediction_class_list = test_imdb._classes,args.arch)
+        validate(val_loader, model, criterion,0,vis=vis,prediction_class_list = test_imdb._classes,model_name = args.arch)
         return
     else:
         print("Not evaluating code")
         pdb.set_trace()
-        return
 
     timestr = time.strftime("%Y%m%d-%H%M%S")
     save_path = "runs/"+timestr+'/'
@@ -273,7 +271,7 @@ def main():
         # evaluate on validation set
         #if epoch+1 % args.eval_freq == 0:                                        #TODO: Delete this line and uncomment the line below later
         if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis,prediction_class_list = test_imdb._classes,args.arch)
+            m1, m2 = validate(val_loader, model, criterion,epoch,vis=vis,prediction_class_list = test_imdb._classes,model_name = args.arch)
             writer.add_scalar('Validation/mAP', m1, epoch)
             writer.add_scalar('Validation/f1_score', m2, epoch)
             score = m1 * m2

@@ -171,7 +171,7 @@ def localizer_alexnet(pretrained=False, **kwargs):
 
     return model
 
-def localizer_alexnet_robust(dropout_prob,pretrained=False, **kwargs):
+def localizer_alexnet_robust(dropout_prob=0.5,pretrained=False, **kwargs):
     r"""AlexNet model architecture from the
     `"One weird trick..." <https://arxiv.org/abs/1404.5997>`_ paper.
 
